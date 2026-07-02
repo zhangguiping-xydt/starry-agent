@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -54,6 +55,23 @@ def _template_env() -> Environment:
 def _safe_name(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip().lower()).strip("-._")
     return cleaned or "local-repository"
+
+
+def _fresh_skill_root(output_root: Path, skill_name: str) -> Path:
+    """Return a fresh concrete skill directory safely contained by output_root."""
+    skill_path = output_root / skill_name
+    if skill_path.is_symlink():
+        raise ValueError("skill output directory must not be a symlink")
+    skill_root = skill_path.resolve()
+    if skill_root == output_root:
+        raise ValueError("skill output directory must be inside output root")
+    try:
+        skill_root.relative_to(output_root)
+    except ValueError as exc:
+        raise ValueError("skill output directory must be inside output root") from exc
+    if skill_root.exists():
+        shutil.rmtree(skill_root)
+    return skill_root
 
 
 def _strip_machine_paths(value: str) -> str:
@@ -427,22 +445,41 @@ def _schema_type(raw_type: str) -> tuple[str, bool]:
 
 def _callable_args(request: dict[str, Any]) -> list[dict[str, Any]]:
     args: list[dict[str, Any]] = []
-    used: set[str] = set()
-    for field in request.get("fields") or []:
-        if not isinstance(field, dict):
-            continue
+    raw_fields = [field for field in (request.get("fields") or []) if isinstance(field, dict)]
+    locations_by_wire: dict[str, set[str]] = defaultdict(set)
+    for field in raw_fields:
+        wire = _py_literal(str(field.get("name") or ""))
+        if wire:
+            locations_by_wire[wire].add(str(field.get("location") or "body"))
+
+    used: set[tuple[str, str]] = set()
+    used_cli: set[str] = set()
+    used_dest: set[str] = set()
+    for field in raw_fields:
         wire = _py_literal(str(field.get("name") or ""))
         if not wire:
             continue
-        dest = _python_identifier(wire)
-        if dest in used:
+        location = str(field.get("location") or "body")
+        key = (wire, location)
+        if key in used:
             continue
-        used.add(dest)
-        cli = "--" + _callable_kebab(wire)
+        used.add(key)
+        has_location_conflict = len(locations_by_wire.get(wire, set())) > 1
+        arg_name = f"{location}-{wire}" if has_location_conflict else wire
+        base_dest = _python_identifier(arg_name)
+        base_cli = "--" + _callable_kebab(arg_name)
+        dest = base_dest
+        cli = base_cli
+        suffix = 2
+        while cli in used_cli or dest in used_dest:
+            dest = f"{base_dest}_{suffix}"
+            cli = f"{base_cli}-{suffix}"
+            suffix += 1
+        used_cli.add(cli)
+        used_dest.add(dest)
         raw_type = _py_literal(str(field.get("type") or ""))
         schema_type, _ = _schema_type(str(field.get("type") or ""))
         required = bool(field.get("required"))
-        location = str(field.get("location") or "body")
         help_text = _py_literal(f"{wire} ({raw_type or schema_type}, {location}).")
         pieces = [f'"{cli}"', f'dest="{dest}"']
         if required:
@@ -450,7 +487,7 @@ def _callable_args(request: dict[str, Any]) -> list[dict[str, Any]]:
         if schema_type == "boolean":
             pieces.append("type=parse_bool")
             if not required:
-                pieces.append("default=False")
+                pieces.append("default=None")
         elif schema_type == "integer":
             pieces.append("type=int")
         elif schema_type == "number":
@@ -472,14 +509,16 @@ def _callable_args(request: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _callable_schema_fields(contract: dict[str, Any]) -> list[dict[str, Any]]:
     fields: list[dict[str, Any]] = []
-    used: set[str] = set()
+    used: set[tuple[str, str]] = set()
     for field in contract.get("fields") or []:
         if not isinstance(field, dict):
             continue
         wire = _py_literal(str(field.get("name") or ""))
-        if not wire or wire in used:
+        location = str(field.get("location") or "body")
+        key = (wire, location)
+        if not wire or key in used:
             continue
-        used.add(wire)
+        used.add(key)
         raw_type = str(field.get("type") or "")
         schema_type, _ = _schema_type(raw_type)
         fields.append(
@@ -489,6 +528,7 @@ def _callable_schema_fields(contract: dict[str, Any]) -> list[dict[str, Any]]:
                 "required": bool(field.get("required")),
                 "is_bool": schema_type == "boolean",
                 "description": _inline_text(f"{wire} ({_inline_text(raw_type) or 'type unknown'})."),
+                "location": location,
             }
         )
     return fields
@@ -554,17 +594,19 @@ def _callable_context(interface: dict[str, Any], project_name: str, slug: str, m
 
     args = _callable_args(request)
     path_args = [arg for arg in args if arg.get("location") == "path"]
-    body_args = [arg for arg in args if arg.get("location") != "path"]
+    query_args = [arg for arg in args if arg.get("location") == "query"]
+    body_args = [arg for arg in args if arg.get("location") not in {"path", "query"}]
     request_fields = _callable_schema_fields(request)
     response_fields = _callable_schema_fields(response)
-    # Split fields so tool.yaml exposes path params separately from the JSON
-    # body schema. Otherwise agents read the body schema as including path
-    # params (which the caller strips out before sending).
-    path_field_names = {arg["wire"] for arg in path_args}
-    request_body_fields = [field for field in request_fields if field["wire"] not in path_field_names]
-    request_path_fields = [field for field in request_fields if field["wire"] in path_field_names]
+    # Split fields so tool.yaml exposes path/query params separately from the JSON
+    # body schema. Prefer explicit field location so body fields that intentionally
+    # share a wire name with a path/query parameter are not dropped.
+    request_body_fields = [field for field in request_fields if field.get("location") not in {"path", "query"}]
+    request_path_fields = [field for field in request_fields if field.get("location") == "path"]
+    request_query_fields = [field for field in request_fields if field.get("location") == "query"]
     request_body_required = [field["wire"] for field in request_body_fields if field["required"]]
     request_path_required = [field["wire"] for field in request_path_fields if field["required"]]
+    request_query_required = [field["wire"] for field in request_query_fields if field["required"]]
     request_required = request_body_required
 
     verb = _METHOD_VERB.get(http_method, "Call")
@@ -587,6 +629,7 @@ def _callable_context(interface: dict[str, Any], project_name: str, slug: str, m
         "http_method": http_method,
         "route": route,
         "has_path_params": bool(path_args),
+        "has_query_params": bool(query_args),
         "handler_symbol": handler_symbol,
         "handler_path": handler_path,
         "business_method": business_method,
@@ -602,16 +645,19 @@ def _callable_context(interface: dict[str, Any], project_name: str, slug: str, m
         "response_notes": _inline_list(response.get("notes")),
         "args": args,
         "path_args": path_args,
+        "query_args": query_args,
         "body_args": body_args,
         "has_args": bool(args),
         "has_body_args": bool(body_args),
         "request_fields": request_fields,
         "request_body_fields": request_body_fields,
         "request_path_fields": request_path_fields,
+        "request_query_fields": request_query_fields,
         "response_fields": response_fields,
         "request_required": request_required,
         "request_body_required": request_body_required,
         "request_path_required": request_path_required,
+        "request_query_required": request_query_required,
         "sample_command": _callable_sample_command(module, args),
         "generated_by": "repo-to-skill",
     }
@@ -698,7 +744,7 @@ def render_callable_bundle(plan: CallableBundlePlan, output: Path) -> Path:
 
     env = _template_env()
     context = _bundle_context(plan)
-    skill_root = output_root / context["bundle_slug"]
+    skill_root = _fresh_skill_root(output_root, context["bundle_slug"])
     (skill_root / "scripts").mkdir(parents=True, exist_ok=True)
     (skill_root / "tools").mkdir(parents=True, exist_ok=True)
     (skill_root / "references").mkdir(parents=True, exist_ok=True)
@@ -778,7 +824,7 @@ def render_callable_composite(plan: CallableCompositePlan, output: Path) -> Path
 
     env = _template_env()
     context = _composite_context(plan)
-    skill_root = output_root / context["composite_slug"]
+    skill_root = _fresh_skill_root(output_root, context["composite_slug"])
     (skill_root / "scripts").mkdir(parents=True, exist_ok=True)
     (skill_root / "tools").mkdir(parents=True, exist_ok=True)
     (skill_root / "references").mkdir(parents=True, exist_ok=True)

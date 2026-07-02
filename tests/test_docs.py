@@ -26,6 +26,7 @@ REQUIRED_PHRASES = [
     "no network",
     "no dependency installation",
     "generated helpers do not spawn shell commands",
+    "Callable helper scripts can use live HTTP only after explicit endpoint configuration and --execute",
     "artifact chain",
     "capability evidence",
     "capability graph",

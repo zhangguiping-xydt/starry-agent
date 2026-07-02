@@ -20,6 +20,7 @@ import os
 {% if has_path_params %}import re
 {% endif %}import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 ENDPOINT_ENV = "{{ endpoint_env }}"
@@ -29,6 +30,11 @@ HTTP_METHOD = "{{ http_method }}"
 
 def parse_bool(value: str) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def endpoint_is_http_url(endpoint: str) -> bool:
+    parsed = urllib.parse.urlparse(endpoint)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
 {% if has_path_params %}
@@ -48,8 +54,29 @@ def resolve_endpoint(endpoint: str, path_values: dict) -> str:
     # values provided on the command line. Missing values are left as-is so the
     # preview makes the gap visible.
     for name, value in path_values.items():
-        endpoint = re.sub(r"\{" + re.escape(name) + r"(?::[^}]*)?\}", str(value), endpoint)
+        encoded = urllib.parse.quote(str(value), safe="")
+        endpoint = re.sub(r"\{" + re.escape(name) + r"(?::[^}]*)?\}", encoded, endpoint)
     return endpoint
+
+
+{% endif %}
+{% if has_query_params %}
+def build_query_values(args: argparse.Namespace) -> dict:
+    # Query parameters are appended to the endpoint URL. They are NOT sent in the
+    # JSON body.
+    values: dict = {}
+{% for arg in query_args %}
+    if args.{{ arg.dest }} is not None:
+        values["{{ arg.wire }}"] = args.{{ arg.dest }}
+{% endfor %}
+    return values
+
+
+def apply_query_params(endpoint: str, query_values: dict) -> str:
+    if not query_values:
+        return endpoint
+    separator = "&" if "?" in endpoint else "?"
+    return endpoint + separator + urllib.parse.urlencode(query_values)
 
 
 {% endif %}
@@ -93,6 +120,9 @@ def main(argv: list[str]) -> int:
 {% if has_path_params %}
     path_values = build_path_values(args)
 {% endif %}
+{% if has_query_params %}
+    query_values = build_query_values(args)
+{% endif %}
     payload = build_payload(args)
     body = json.dumps(payload, ensure_ascii=False)
 
@@ -102,7 +132,14 @@ def main(argv: list[str]) -> int:
 {% else %}
     endpoint = base_endpoint
 {% endif %}
+{% if has_query_params %}
+    endpoint = apply_query_params(endpoint or "", query_values) if endpoint else endpoint
+{% endif %}
     token = os.environ.get(TOKEN_ENV)
+    preview_endpoint = endpoint or "<" + ENDPOINT_ENV + ">"
+{% if has_query_params %}    if not endpoint:
+        preview_endpoint = apply_query_params(preview_endpoint, query_values)
+{% endif %}
 
     # Preview unless the caller explicitly opts in AND an endpoint is configured.
     if args.dry_run or not args.execute or not endpoint:
@@ -114,10 +151,14 @@ def main(argv: list[str]) -> int:
             reason = ENDPOINT_ENV + " not set"
         print("[preview] " + reason + "; not sending any request.")
         print("  method:   " + HTTP_METHOD)
-        print("  endpoint: " + (endpoint or "<" + ENDPOINT_ENV + ">"))
+        print("  endpoint: " + preview_endpoint)
         print("  auth:     " + ("bearer <redacted>" if token else "<" + TOKEN_ENV + " not set>"))
         print("  body:     " + body)
         return 0
+
+    if not endpoint_is_http_url(endpoint):
+        print("[error] endpoint must use http or https and include a host: " + endpoint)
+        return 1
 
     headers = {"Content-Type": "application/json"}
     if token:

@@ -53,7 +53,7 @@ DANGEROUS_SCRIPT_TOKENS = (
 CALLABLE_DANGEROUS_SCRIPT_TOKENS = tuple(
     token for token in DANGEROUS_SCRIPT_TOKENS if token not in {"urllib", "open("}
 )
-ALLOWED_URLLIB_SUBMODULES = {"request", "error"}
+ALLOWED_URLLIB_SUBMODULES = {"request", "error", "parse"}
 
 READONLY_MANIFEST_BANNED_TOKENS = (
     "CapabilityRegistry",

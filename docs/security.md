@@ -18,13 +18,15 @@ repo-to-skill does not modify the target repository. Commands that write files r
 
 ## Generated helper scripts
 
-Generated helper scripts are read-only. They must keep these boundaries:
+Generated repo-reading helper scripts, including repo-map helpers, are read-only. They must keep these boundaries:
 
 - no network
 - no dependency installation
 - generated helpers do not spawn shell commands
 - no writes to the target repository
 - no runtime registration
+
+Callable helper scripts can use live HTTP only after explicit endpoint configuration and --execute. Callable helpers default to dry-run/preview mode; live HTTP remains constrained by endpoint and token environment variables plus the explicit `--execute` flag.
 
 The validator checks helper scripts for dangerous operations and validates manifest safety metadata.
 

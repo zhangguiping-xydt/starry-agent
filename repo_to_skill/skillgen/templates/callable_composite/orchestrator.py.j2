@@ -58,6 +58,10 @@ STEPS = [
 ]
 
 
+def parse_bool(value: str) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def _load_caller(script_name: str):
     """Import a sibling caller script as a module and return its main(argv) function."""
     path = SCRIPTS_DIR / script_name
@@ -111,11 +115,17 @@ def main(argv: list[str]) -> int:
             "every step's *_ENDPOINT env var set."
         ),
     )
+{% if steps[0].args %}
+{% for arg in steps[0].args %}
+    {{ arg.add_argument }}
+{% endfor %}
+{% else %}
     parser.add_argument(
-        "--employee-info",
-        default="",
-        help="Identifier for the employee this composite operates on (passed to step_0).",
+        "--json-body",
+        default="{}",
+        help="Raw JSON request body to pass to step_0.",
     )
+{% endif %}
     parser.add_argument(
         "--execute",
         action="store_true",
@@ -145,10 +155,15 @@ def main(argv: list[str]) -> int:
     # ------------------------------------------------------------------ #
     # step_0: {{ steps[0].slug }} — first call, uses entry args directly.
     # ------------------------------------------------------------------ #
-    step_0_argv = [
-        "--employee-info",
-        str(args.employee_info),
-    ]
+    step_0_argv = []
+{% if steps[0].args %}
+{% for arg in steps[0].args %}
+    if args.{{ arg.dest }} is not None:
+        step_0_argv.extend(["{{ arg.cli }}", str(args.{{ arg.dest }})])
+{% endfor %}
+{% else %}
+    step_0_argv.extend(["--json-body", args.json_body])
+{% endif %}
     if execute:
         step_0_argv.append("--execute")
     step_0 = _run_step(STEPS[0], step_0_argv, execute=execute)

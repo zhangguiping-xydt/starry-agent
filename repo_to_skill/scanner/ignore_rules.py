@@ -41,14 +41,20 @@ DEFAULT_SKIP_DIRS = {
 
 SENSITIVE_FILENAMES = {
     ".env",
+    ".envrc",
     ".npmrc",
     ".pypirc",
     "id_rsa",
+    "id_dsa",
+    "id_ecdsa",
+    "id_ed25519",
+    "private_key",
     "credentials.json",
     "secrets.json",
+    "service-account.json",
 }
 
-SENSITIVE_SUFFIXES = {".pem", ".key"}
+SENSITIVE_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".jks", ".keystore"}
 
 
 def should_skip_dir(path: Path) -> bool:
@@ -56,7 +62,7 @@ def should_skip_dir(path: Path) -> bool:
 
 
 def is_sensitive_file(path: Path) -> bool:
-    name = path.name
+    name = path.name.lower()
     # Catch dotted .env variants (.env.local, .env.production, ...) that hold
     # real secrets, not just the bare ".env".
     if name in SENSITIVE_FILENAMES or name.startswith(".env."):

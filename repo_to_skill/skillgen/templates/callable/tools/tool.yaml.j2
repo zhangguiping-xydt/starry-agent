@@ -17,11 +17,11 @@ invocation:
 input_schema:
   type: object
 {% if request_body_required %}
-  required: [{{ request_body_required | join(", ") }}]
+  required: [{% for name in request_body_required %}{{ name | tojson }}{% if not loop.last %}, {% endif %}{% endfor %}]
 {% endif %}
   properties:
 {% for field in request_body_fields %}
-    {{ field.wire }}:
+    {{ field.wire | tojson }}:
       type: {{ field.schema_type }}
 {% if field.is_bool %}
       default: false
@@ -35,7 +35,18 @@ input_schema:
 # endpoint URL; they are NOT sent in the JSON body.
 path_parameters:
 {% for field in request_path_fields %}
-  {{ field.wire }}:
+  {{ field.wire | tojson }}:
+    type: {{ field.schema_type }}
+    required: {{ field.required | lower }}
+    description: {{ field.description | tojson }}
+{% endfor %}
+{% endif %}
+{% if request_query_fields %}
+# Query parameters are appended to the endpoint URL; they are NOT sent in the
+# JSON body.
+query_parameters:
+{% for field in request_query_fields %}
+  {{ field.wire | tojson }}:
     type: {{ field.schema_type }}
     required: {{ field.required | lower }}
     description: {{ field.description | tojson }}
@@ -46,7 +57,7 @@ output_schema:
   type: object
   properties:
 {% for field in response_fields %}
-    {{ field.wire }}:
+    {{ field.wire | tojson }}:
       type: {{ field.schema_type }}
       description: {{ field.description | tojson }}
 {% else %}

@@ -303,6 +303,320 @@ def transfer_employee(employee_id: int, payload: TransferRequest):
     assert path_params["employee_id"]["required"] is True
 
 
+def test_tool_yaml_quotes_ambiguous_field_names(tmp_path: Path) -> None:
+    interface = {
+        "slug": "toggle-flags",
+        "stack": "python",
+        "framework": "fastapi",
+        "http_method": "POST",
+        "route": "/flags",
+        "handler_symbol": "toggle_flags",
+        "handler_path": "main.py",
+        "business_method": "toggle_flags",
+        "endpoint_env": "TOGGLE_FLAGS_ENDPOINT",
+        "token_env": "TOGGLE_FLAGS_TOKEN",
+        "side_effects": "unknown",
+        "request": {
+            "model_name": "ToggleFlagsRequest",
+            "fields": [
+                {"name": "on", "type": "boolean", "required": True},
+                {"name": "no", "type": "string", "required": False},
+            ],
+            "unresolved": False,
+            "notes": [],
+        },
+        "response": {
+            "model_name": "ToggleFlagsResponse",
+            "fields": [{"name": "off", "type": "boolean", "required": False}],
+            "unresolved": False,
+            "notes": [],
+        },
+    }
+    repo = tmp_path / "repo"
+    analysis = tmp_path / "analysis"
+    repo.mkdir()
+    analysis.mkdir()
+    (analysis / "scan.json").write_text(json.dumps({"root": str(repo), "files": []}), encoding="utf-8")
+    (analysis / "profile.json").write_text(json.dumps({"name": "sample"}), encoding="utf-8")
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps({"project": "sample", "interfaces": [interface], "notes": []}), encoding="utf-8"
+    )
+    pack = render_callable_skills(plan_callable_skills(repo, analysis), tmp_path / "skill")[0]
+
+    tool = yaml.safe_load(next((pack / "tools").glob("*.tool.yaml")).read_text(encoding="utf-8"))
+
+    assert "on" in tool["input_schema"]["required"]
+    assert "on" in tool["input_schema"]["properties"]
+    assert "no" in tool["input_schema"]["properties"]
+    assert "off" in tool["output_schema"]["properties"]
+
+
+def test_body_field_name_can_match_path_parameter(tmp_path: Path) -> None:
+    interface = {
+        "slug": "update-employee",
+        "stack": "python",
+        "framework": "fastapi",
+        "http_method": "POST",
+        "route": "/employees/{employee_id}",
+        "handler_symbol": "update_employee",
+        "handler_path": "main.py",
+        "business_method": "update_employee",
+        "endpoint_env": "UPDATE_EMPLOYEE_ENDPOINT",
+        "token_env": "UPDATE_EMPLOYEE_TOKEN",
+        "side_effects": "unknown",
+        "request": {
+            "model_name": "UpdateEmployeeRequest",
+            "fields": [
+                {"name": "employee_id", "type": "integer", "required": True, "location": "path"},
+                {"name": "employee_id", "type": "string", "required": True, "location": "body"},
+                {"name": "name", "type": "string", "required": True, "location": "body"},
+            ],
+            "unresolved": False,
+            "notes": [],
+        },
+        "response": {"model_name": "UpdateEmployeeResponse", "fields": [], "unresolved": False, "notes": []},
+    }
+    repo = tmp_path / "repo"
+    analysis = tmp_path / "analysis"
+    repo.mkdir()
+    analysis.mkdir()
+    (analysis / "scan.json").write_text(json.dumps({"root": str(repo), "files": []}), encoding="utf-8")
+    (analysis / "profile.json").write_text(json.dumps({"name": "sample"}), encoding="utf-8")
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps({"project": "sample", "interfaces": [interface], "notes": []}), encoding="utf-8"
+    )
+
+    pack = render_callable_skills(plan_callable_skills(repo, analysis), tmp_path / "skill")[0]
+    tool = yaml.safe_load(next((pack / "tools").glob("*.tool.yaml")).read_text(encoding="utf-8"))
+
+    assert "employee_id" in tool["path_parameters"]
+    assert "employee_id" in tool["input_schema"]["properties"]
+    assert "employee_id" in tool["input_schema"]["required"]
+    assert "name" in tool["input_schema"]["properties"]
+
+
+def test_callable_path_params_are_url_encoded(tmp_path: Path) -> None:
+    fastapi_src = """from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get(\"/files/{file_id}\")
+def get_file(file_id: str):
+    return {\"id\": file_id}
+"""
+    repo, analysis = _prepare(tmp_path, {"main.py": ("Python", fastapi_src)})
+    plan = plan_callable_skills(repo, analysis)
+    pack = render_callable_skills(plan, tmp_path / "skill")[0]
+    script_path = pack / "scripts" / "call_main_get_file.py"
+
+    spec = importlib.util.spec_from_file_location("call_main_get_file", script_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    endpoint = module.resolve_endpoint("https://api.example/files/{file_id}", {"file_id": "A/B C?"})
+
+    assert endpoint == "https://api.example/files/A%2FB%20C%3F"
+
+
+def test_callable_query_params_are_appended_to_endpoint(tmp_path: Path) -> None:
+    fastapi_src = """from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get(\"/search\")
+def search(q: str, limit: int = 10):
+    return {\"items\": []}
+"""
+    repo, analysis = _prepare(tmp_path, {"main.py": ("Python", fastapi_src)})
+    plan = plan_callable_skills(repo, analysis)
+    pack = render_callable_skills(plan, tmp_path / "skill")[0]
+    script_path = pack / "scripts" / "call_main_search.py"
+
+    spec = importlib.util.spec_from_file_location("call_main_search", script_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    endpoint = module.apply_query_params("https://api.example/search?existing=1", {"q": "a/b", "limit": 10})
+
+    assert endpoint == "https://api.example/search?existing=1&q=a%2Fb&limit=10"
+    tool = yaml.safe_load(next((pack / "tools").glob("*.tool.yaml")).read_text(encoding="utf-8"))
+    assert tool["query_parameters"]["q"]["required"] is True
+    assert tool["query_parameters"]["limit"]["required"] is False
+
+
+def test_duplicate_wire_names_across_locations_get_distinct_cli_args(tmp_path: Path) -> None:
+    interface = {
+        "slug": "sync-value",
+        "stack": "python",
+        "framework": "fastapi",
+        "http_method": "POST",
+        "route": "/sync",
+        "handler_symbol": "sync_value",
+        "handler_path": "main.py",
+        "business_method": "sync_value",
+        "endpoint_env": "SYNC_VALUE_ENDPOINT",
+        "token_env": "SYNC_VALUE_TOKEN",
+        "side_effects": "unknown",
+        "request": {
+            "model_name": "SyncValueRequest",
+            "fields": [
+                {"name": "value", "type": "string", "required": True, "location": "query"},
+                {"name": "value", "type": "string", "required": True, "location": "body"},
+            ],
+            "unresolved": False,
+            "notes": [],
+        },
+        "response": {"model_name": "SyncValueResponse", "fields": [], "unresolved": False, "notes": []},
+    }
+    repo = tmp_path / "repo"
+    analysis = tmp_path / "analysis"
+    repo.mkdir()
+    analysis.mkdir()
+    (analysis / "scan.json").write_text(json.dumps({"root": str(repo), "files": []}), encoding="utf-8")
+    (analysis / "profile.json").write_text(json.dumps({"name": "sample"}), encoding="utf-8")
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps({"project": "sample", "interfaces": [interface], "notes": []}), encoding="utf-8"
+    )
+    pack = render_callable_skills(plan_callable_skills(repo, analysis), tmp_path / "skill")[0]
+    main = _load_main(pack / "scripts" / "call_sync_value.py")
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = main(["--query-value", "from-query", "--body-value", "from-body"])
+
+    out = buffer.getvalue()
+    assert rc == 0
+    assert "endpoint: <SYNC_VALUE_ENDPOINT>?value=from-query" in out
+    assert '"value": "from-body"' in out
+
+
+def test_location_prefixed_cli_args_do_not_collide_with_existing_field_names(tmp_path: Path) -> None:
+    interface = {
+        "slug": "sync-value-collision",
+        "stack": "python",
+        "framework": "fastapi",
+        "http_method": "POST",
+        "route": "/sync",
+        "handler_symbol": "sync_value_collision",
+        "handler_path": "main.py",
+        "business_method": "sync_value_collision",
+        "endpoint_env": "SYNC_VALUE_COLLISION_ENDPOINT",
+        "token_env": "SYNC_VALUE_COLLISION_TOKEN",
+        "side_effects": "unknown",
+        "request": {
+            "model_name": "SyncValueCollisionRequest",
+            "fields": [
+                {"name": "value", "type": "string", "required": True, "location": "query"},
+                {"name": "value", "type": "string", "required": True, "location": "body"},
+                {"name": "body-value", "type": "string", "required": True, "location": "body"},
+            ],
+            "unresolved": False,
+            "notes": [],
+        },
+        "response": {"model_name": "SyncValueCollisionResponse", "fields": [], "unresolved": False, "notes": []},
+    }
+    repo = tmp_path / "repo"
+    analysis = tmp_path / "analysis"
+    repo.mkdir()
+    analysis.mkdir()
+    (analysis / "scan.json").write_text(json.dumps({"root": str(repo), "files": []}), encoding="utf-8")
+    (analysis / "profile.json").write_text(json.dumps({"name": "sample"}), encoding="utf-8")
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps({"project": "sample", "interfaces": [interface], "notes": []}), encoding="utf-8"
+    )
+    pack = render_callable_skills(plan_callable_skills(repo, analysis), tmp_path / "skill")[0]
+    main = _load_main(pack / "scripts" / "call_sync_value_collision.py")
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = main([
+            "--query-value",
+            "from-query",
+            "--body-value",
+            "from-body",
+            "--body-value-2",
+            "literal-body-value",
+        ])
+
+    out = buffer.getvalue()
+    assert rc == 0
+    assert "endpoint: <SYNC_VALUE_COLLISION_ENDPOINT>?value=from-query" in out
+    assert '"value": "from-body"' in out
+    assert '"body-value": "literal-body-value"' in out
+
+
+def test_callable_rejects_non_http_endpoint_on_execute(tmp_path: Path, monkeypatch) -> None:
+    pack = _render_resolved_pack(tmp_path)
+    script_path = pack / "scripts" / "call_calculate_work_load.py"
+    main = _load_main(script_path)
+    monkeypatch.setenv("CALCULATE_WORK_LOAD_ENDPOINT", "file:///etc/passwd")
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = main(
+            [
+                "--employee-info",
+                "E1",
+                "--apply-start-date-time",
+                "2026-01-01",
+                "--apply-end-date-time",
+                "2026-01-02",
+                "--is-contain-holiday",
+                "false",
+                "--bill-type",
+                "1",
+                "--execute",
+            ]
+        )
+
+    assert rc == 1
+    assert "endpoint must use http or https" in buffer.getvalue()
+
+
+def test_optional_boolean_is_omitted_when_not_provided(tmp_path: Path) -> None:
+    interface = {
+        "slug": "list-items",
+        "stack": "python",
+        "framework": "fastapi",
+        "http_method": "POST",
+        "route": "/items",
+        "handler_symbol": "list_items",
+        "handler_path": "main.py",
+        "business_method": "list_items",
+        "endpoint_env": "LIST_ITEMS_ENDPOINT",
+        "token_env": "LIST_ITEMS_TOKEN",
+        "side_effects": "unknown",
+        "request": {
+            "model_name": "ListItemsRequest",
+            "fields": [{"name": "includeDrafts", "type": "boolean", "required": False}],
+            "unresolved": False,
+            "notes": [],
+        },
+        "response": {"model_name": "ListItemsResponse", "fields": [], "unresolved": False, "notes": []},
+    }
+    analysis = tmp_path / "analysis"
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    analysis.mkdir()
+    (analysis / "scan.json").write_text(json.dumps({"root": str(repo), "files": []}), encoding="utf-8")
+    (analysis / "profile.json").write_text(json.dumps({"name": "sample"}), encoding="utf-8")
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps({"project": "sample", "interfaces": [interface], "notes": []}), encoding="utf-8"
+    )
+    plan = plan_callable_skills(repo, analysis)
+    pack = render_callable_skills(plan, tmp_path / "skill")[0]
+    main = _load_main(pack / "scripts" / "call_list_items.py")
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = main([])
+
+    assert rc == 0
+    assert "body:     {}" in buffer.getvalue()
+
+
 # --------------------------------------------------------------------------- #
 # Renderer — unresolved contract degrades to a --json-body caller
 # --------------------------------------------------------------------------- #

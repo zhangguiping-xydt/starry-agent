@@ -244,6 +244,40 @@ def test_render_composite_creates_one_skill_with_orchestrator_and_callers(tmp_pa
     ]
 
 
+def test_render_composite_removes_stale_tools_and_scripts(tmp_path: Path) -> None:
+    repo, analysis = _prepare(tmp_path)
+    output = tmp_path / "skill"
+    first = plan_callable_composite(
+        repo,
+        analysis,
+        goal="根据加班时长查询调休天数",
+        selected_slugs=["calculate-work-load", "leave-balance", "dictionary-list"],
+        selection_json=None,
+        max_interfaces=5,
+    )
+    composite = render_callable_composite(first, output)
+    assert (composite / "tools" / "dictionary_list.tool.yaml").is_file()
+
+    second = plan_callable_composite(
+        repo,
+        analysis,
+        goal="根据加班时长查询调休天数",
+        selected_slugs=["calculate-work-load", "leave-balance"],
+        selection_json=None,
+        max_interfaces=5,
+    )
+    composite = render_callable_composite(second, output)
+
+    assert sorted(path.name for path in (composite / "tools").glob("*.tool.yaml")) == [
+        "calculate_work_load.tool.yaml",
+        "leave_balance.tool.yaml",
+    ]
+    assert sorted(path.name for path in (composite / "scripts").glob("call_*.py")) == [
+        "call_calculate_work_load.py",
+        "call_leave_balance.py",
+    ]
+
+
 def test_render_composite_orchestrator_parses_and_has_field_mapping_todos(tmp_path: Path) -> None:
     repo, analysis = _prepare(tmp_path)
     plan = plan_callable_composite(
@@ -265,6 +299,88 @@ def test_render_composite_orchestrator_parses_and_has_field_mapping_todos(tmp_pa
     assert "CALL_LEAVE_BALANCE_ENDPOINT" in source or "LEAVE_BALANCE_ENDPOINT" in source
     assert "step_0" in source
     assert "step_1" in source
+
+
+def test_composite_orchestrator_uses_first_step_request_fields(tmp_path: Path) -> None:
+    repo, analysis = _prepare(tmp_path)
+    plan = plan_callable_composite(
+        repo,
+        analysis,
+        goal="根据加班时长查询调休天数",
+        selected_slugs=["leave-balance", "dictionary-list"],
+        selection_json=None,
+        max_interfaces=5,
+    )
+    composite = render_callable_composite(plan, tmp_path / "skill")
+    orchestrator = composite / "orchestrator.py"
+    source = orchestrator.read_text(encoding="utf-8")
+
+    assert "--work-hours" in source
+    assert "--employee-info" not in source
+
+    spec = importlib.util.spec_from_file_location("dynamic_orchestrator", orchestrator)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = module.main(["--work-hours", "8"])
+
+    assert rc == 0
+    assert "--work-hours" in buffer.getvalue()
+
+
+def test_composite_orchestrator_supports_boolean_first_step_args(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    analysis = tmp_path / "analysis"
+    analysis.mkdir()
+    interfaces = [
+        _interface(
+            "toggle-flag",
+            route="/flags/toggle",
+            handler="FlagController.toggle",
+            request_field="Enabled",
+            response_field="FlagId",
+        ),
+        _interface(
+            "dictionary-list",
+            route="/dictionary/list",
+            handler="DictionaryController.list",
+            request_field="DicId",
+            response_field="DicName",
+        ),
+    ]
+    interfaces[0]["request"]["fields"][0]["type"] = "boolean"
+    (analysis / "scan.json").write_text(json.dumps({"root": str(repo), "files": []}), encoding="utf-8")
+    (analysis / "profile.json").write_text(json.dumps({"name": "tms-atm"}), encoding="utf-8")
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps({"project": "tms-atm", "interfaces": interfaces, "notes": []}), encoding="utf-8"
+    )
+    plan = plan_callable_composite(
+        repo,
+        analysis,
+        goal="toggle then lookup",
+        selected_slugs=["toggle-flag", "dictionary-list"],
+        selection_json=None,
+        max_interfaces=5,
+    )
+    composite = render_callable_composite(plan, tmp_path / "skill")
+    orchestrator = composite / "orchestrator.py"
+
+    spec = importlib.util.spec_from_file_location("boolean_orchestrator", orchestrator)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = module.main(["--enabled", "true"])
+
+    assert rc == 0
+    assert "--enabled" in buffer.getvalue()
+
 
 
 def test_render_composite_manifest_has_composite_kind_and_steps(tmp_path: Path) -> None:

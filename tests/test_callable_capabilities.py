@@ -532,6 +532,129 @@ def test_detects_fastapi_handler_with_default_call_parens(tmp_path: Path) -> Non
     assert interface.route == "/search"
 
 
+def test_fastapi_scalar_params_are_query_fields(tmp_path: Path) -> None:
+    source = """from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get(\"/search\")
+def search(q: str, limit: int = 10):
+    return {\"items\": []}
+"""
+    scan = _write_scan(tmp_path / "repo", {"main.py": ("Python", source)})
+
+    capabilities = build_callable_capabilities(scan, tmp_path / "repo")
+
+    interface = capabilities.interfaces[0]
+    fields = {field.name: field for field in interface.request.fields}
+    assert fields["q"].location == "query"
+    assert fields["q"].required is True
+    assert fields["limit"].location == "query"
+    assert fields["limit"].required is False
+
+
+def test_fastapi_skips_framework_context_params_and_preserves_required_query(tmp_path: Path) -> None:
+    source = """from fastapi import FastAPI, Query, Request
+
+app = FastAPI()
+
+@app.get(\"/search\")
+def search(request: Request, q: str = Query(...), limit: int = 10):
+    return {\"items\": []}
+"""
+    scan = _write_scan(tmp_path / "repo", {"main.py": ("Python", source)})
+
+    capabilities = build_callable_capabilities(scan, tmp_path / "repo")
+
+    fields = {field.name: field for field in capabilities.interfaces[0].request.fields}
+    assert "request" not in fields
+    assert fields["q"].location == "query"
+    assert fields["q"].required is True
+    assert fields["limit"].location == "query"
+    assert fields["limit"].required is False
+
+
+def test_fastapi_required_sentinel_marks_query_required(tmp_path: Path) -> None:
+    source = """from fastapi import FastAPI, Query
+from pydantic.fields import Required
+
+app = FastAPI()
+
+@app.get(\"/search\")
+def search(q: str = Query(Required), name: str = Query(default=Required)):
+    return {\"items\": []}
+"""
+    scan = _write_scan(tmp_path / "repo", {"main.py": ("Python", source)})
+
+    capabilities = build_callable_capabilities(scan, tmp_path / "repo")
+
+    fields = {field.name: field for field in capabilities.interfaces[0].request.fields}
+    assert fields["q"].location == "query"
+    assert fields["q"].required is True
+    assert fields["name"].location == "query"
+    assert fields["name"].required is True
+
+
+def test_fastapi_query_required_detection_handles_keywords_and_description_text(tmp_path: Path) -> None:
+    source = """from fastapi import FastAPI, Query
+from pydantic.fields import Required
+
+app = FastAPI()
+
+@app.get(\"/search\")
+def search(
+    omitted_default: str = Query(description=\"Search\"),
+    alias_required: str = Query(alias=\"q\", default=Required),
+    described_required: str = Query(description=\"x\", default=Required),
+    optional_with_required_word: str = Query(None, description=\"Required by docs only\"),
+):
+    return {\"items\": []}
+"""
+    scan = _write_scan(tmp_path / "repo", {"main.py": ("Python", source)})
+
+    capabilities = build_callable_capabilities(scan, tmp_path / "repo")
+
+    fields = {field.name: field for field in capabilities.interfaces[0].request.fields}
+    assert fields["omitted_default"].required is True
+    assert fields["alias_required"].required is True
+    assert fields["described_required"].required is True
+    assert fields["optional_with_required_word"].required is False
+
+
+def test_fastapi_explicit_parameter_helpers_control_location_and_required(tmp_path: Path) -> None:
+    source = """from typing import Annotated
+from fastapi import Body, FastAPI, Query
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Item(BaseModel):
+    name: str
+
+@app.post(\"/items\")
+def create_item(
+    search: Item = Query(...),
+    payload: str = Body(...),
+    optional_query: Annotated[str, Query(None)] = "",
+    required_query: Annotated[str, Query(...)] = "",
+):
+    return {\"ok\": True}
+"""
+    scan = _write_scan(tmp_path / "repo", {"main.py": ("Python", source)})
+
+    capabilities = build_callable_capabilities(scan, tmp_path / "repo")
+
+    fields = {field.name: field for field in capabilities.interfaces[0].request.fields}
+    assert fields["search"].location == "query"
+    assert fields["search"].required is True
+    assert fields["payload"].location == "body"
+    assert fields["payload"].required is True
+    assert fields["optional_query"].location == "query"
+    assert fields["optional_query"].required is False
+    assert fields["required_query"].location == "query"
+    assert fields["required_query"].required is True
+
+
 # --------------------------------------------------------------------------- #
 # Python — Flask (best-effort key inference)
 # --------------------------------------------------------------------------- #

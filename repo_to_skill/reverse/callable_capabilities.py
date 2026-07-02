@@ -1049,6 +1049,111 @@ def _fastapi_base_type(annotation: str) -> str:
     return re.split(r"\s*\[\s*", cleaned, maxsplit=1)[0].strip().split(".")[-1]
 
 
+_FASTAPI_CONTEXT_PARAM_NAMES = {"self", "cls"}
+_FASTAPI_CONTEXT_TYPES = {
+    "Request",
+    "WebSocket",
+    "Response",
+    "BackgroundTasks",
+    "HTTPConnection",
+    "State",
+}
+_FASTAPI_PARAM_HELPERS = {"Query", "Path", "Body", "Cookie", "Header", "Form", "File"}
+
+
+def _fastapi_is_context_param(name: str, annotation_base: str) -> bool:
+    return name in _FASTAPI_CONTEXT_PARAM_NAMES or annotation_base in _FASTAPI_CONTEXT_TYPES
+
+
+def _fastapi_helper_calls(*texts: str) -> list[tuple[str, str]]:
+    """Return FastAPI parameter helper calls found in defaults/Annotated metadata."""
+    calls: list[tuple[str, str]] = []
+    for text in texts:
+        for match in re.finditer(r"(?:fastapi\.)?(Query|Path|Body)\s*\(", text or ""):
+            calls.append((match.group(1), _balanced_paren_text(text, match.end() - 1)))
+    return calls
+
+
+def _fastapi_split_helper_args(args: str) -> list[str]:
+    parts: list[str] = []
+    depth = 0
+    quote = ""
+    current = ""
+    for char in args:
+        if quote:
+            current += char
+            if char == quote:
+                quote = ""
+            continue
+        if char in "\"'":
+            quote = char
+            current += char
+            continue
+        if char == "," and depth == 0:
+            if current.strip():
+                parts.append(current.strip())
+            current = ""
+            continue
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            if depth > 0:
+                depth -= 1
+        current += char
+    if current.strip():
+        parts.append(current.strip())
+    return parts
+
+
+def _fastapi_default_value_required(value: str) -> bool:
+    return value.strip() in {"...", "Ellipsis", "Required"}
+
+
+def _fastapi_helper_required(args: str) -> bool | None:
+    positional: list[str] = []
+    default_value: str | None = None
+    for part in _fastapi_split_helper_args(args):
+        keyword = re.fullmatch(r"([A-Za-z_]\w*)\s*=\s*(.+)", part, re.DOTALL)
+        if keyword:
+            if keyword.group(1) == "default":
+                default_value = keyword.group(2).strip()
+            continue
+        positional.append(part)
+
+    if default_value is not None:
+        return _fastapi_default_value_required(default_value)
+    if positional:
+        return _fastapi_default_value_required(positional[0])
+    return True
+
+
+def _fastapi_param_location(name: str, annotation: str, default: str, path_param_names: set[str]) -> str | None:
+    for helper_name, _args in _fastapi_helper_calls(annotation, default):
+        if helper_name == "Query":
+            return "query"
+        if helper_name == "Body":
+            return "body"
+        if helper_name == "Path" and name in path_param_names:
+            return "path"
+    return None
+
+
+def _fastapi_param_required(default: str, annotation: str = "") -> bool:
+    """Return whether a FastAPI handler parameter should be considered required."""
+    for _helper_name, args in _fastapi_helper_calls(annotation):
+        helper_required = _fastapi_helper_required(args)
+        if helper_required is not None:
+            return helper_required
+    for _helper_name, args in _fastapi_helper_calls(default):
+        helper_required = _fastapi_helper_required(args)
+        if helper_required is not None:
+            return helper_required
+    cleaned = default.strip()
+    if not cleaned or cleaned == "...":
+        return True
+    return False
+
+
 def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[CallableInterface]:
     text = source.text
     if "@" not in text or (".get(" not in text and ".post(" not in text and ".put(" not in text
@@ -1066,13 +1171,26 @@ def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[C
 
         path_param_names = set(_fastapi_path_param_names(route))
         path_fields: list[IoField] = []
+        query_fields: list[IoField] = []
+        body_fields: list[IoField] = []
         body_type = ""
         body_is_dict = False
-        for name, annotation, _default in _fastapi_split_params(params):
+        for name, annotation, default in _fastapi_split_params(params):
             if not name:
                 continue
             annotation_base = _fastapi_base_type(annotation)
-            if name in path_param_names:
+            if _fastapi_is_context_param(name, annotation_base):
+                continue
+            explicit_location = _fastapi_param_location(name, annotation, default, path_param_names)
+            location = explicit_location
+            if location is None:
+                if name in path_param_names:
+                    location = "path"
+                elif annotation_base in index or annotation_base.lower() in {"dict", "dictionary"} or annotation_base.lower().startswith("dict["):
+                    location = "body"
+                else:
+                    location = "query"
+            if location == "path":
                 # Path parameter: FastAPI binds it from {name} in the route.
                 path_fields.append(
                     IoField(
@@ -1086,10 +1204,35 @@ def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[C
                     )
                 )
                 continue
+            if location == "query":
+                query_fields.append(
+                    IoField(
+                        name=name,
+                        type=annotation_base or "string",
+                        required=_fastapi_param_required(default, annotation),
+                        source_path=source.path,
+                        source_symbol=action_name,
+                        confidence=0.7,
+                        location="query",
+                    )
+                )
+                continue
             if annotation_base in index:
                 body_type = annotation_base
             elif annotation_base.lower() in {"dict", "dictionary"} or annotation_base.lower().startswith("dict["):
                 body_is_dict = True
+            else:
+                body_fields.append(
+                    IoField(
+                        name=name,
+                        type=annotation_base or "string",
+                        required=_fastapi_param_required(default, annotation),
+                        source_path=source.path,
+                        source_symbol=action_name,
+                        confidence=0.7,
+                        location="body",
+                    )
+                )
 
         response_type = ""
         response_model = re.search(r"response_model\s*=\s*([A-Za-z_]\w*)", decorator_args)
@@ -1113,6 +1256,14 @@ def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[C
                 else None
             )
         )
+        if body_contract is None and body_fields:
+            body_contract = IoContract(
+                model_name=f"{action_name}_body",
+                fields=[],
+                unresolved=False,
+                confidence=0.6,
+                notes=[],
+            )
         if body_contract is None:
             # GET handlers typically have no body; POST/PUT/PATCH without a body
             # param is still callable with an empty payload.
@@ -1123,9 +1274,9 @@ def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[C
                 notes=["No typed request body parameter detected; pass --json-body '{}' if a body is required."],
             )
 
-        # Merge path fields into the contract's field list so callers know they
-        # must supply them. location="path" distinguishes them from body fields.
-        merged_fields = list(path_fields) + list(body_contract.fields)
+        # Merge path/query fields into the contract's field list so callers know
+        # they must supply them. location distinguishes them from body fields.
+        merged_fields = list(path_fields) + list(query_fields) + list(body_fields) + list(body_contract.fields)
         request_contract = IoContract(
             model_name=body_contract.model_name,
             media_type=body_contract.media_type,

@@ -64,6 +64,52 @@ def test_load_workflow_hints_rejects_non_list_workflows(tmp_path: Path) -> None:
         load_workflow_hints(path)
 
 
+def test_load_workflow_hints_rejects_unsafe_input_name(tmp_path: Path) -> None:
+    path = _write_hints(
+        tmp_path,
+        {
+            "service_env_prefix": "EXAMPLE_SERVICE",
+            "workflows": [
+                {
+                    "name": "query_records",
+                    "pattern": "single-query",
+                    "steps": {"lookup": "example-query"},
+                    "inputs": {"a-b c": "nameConcat"},
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"workflows\[0\] inputs key 'a-b c': must be a safe identifier",
+    ):
+        load_workflow_hints(path)
+
+
+def test_load_workflow_hints_rejects_unsafe_input_maps_to(tmp_path: Path) -> None:
+    path = _write_hints(
+        tmp_path,
+        {
+            "service_env_prefix": "EXAMPLE_SERVICE",
+            "workflows": [
+                {
+                    "name": "query_records",
+                    "pattern": "single-query",
+                    "steps": {"lookup": "example-query"},
+                    "inputs": {"keyword": "q\"q"},
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"workflows\[0\] inputs key 'keyword': must be a safe identifier",
+    ):
+        load_workflow_hints(path)
+
+
 def test_service_env_prefix_converts_project_name() -> None:
     assert derive_service_env_prefix("zte-hrm-job-service") == "ZTE_HRM_JOB_SERVICE"
     assert derive_service_env_prefix("corehr-businessprocess") == "COREHR_BUSINESSPROCESS"

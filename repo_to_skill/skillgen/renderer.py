@@ -829,29 +829,35 @@ def _task_workflow_context(plan: TaskWorkflowPlan) -> dict[str, Any]:
     bundle_slug = _safe_name(plan.need_summary or plan.project_name)
 
     interfaces: list[dict[str, Any]] = []
-    used_modules: dict[str, int] = {}
+    used_filenames: set[str] = set()
     for workflow in plan.workflows:
         for step in workflow.steps:
             module = step.module
-            count = used_modules.get(module, 0)
-            used_modules[module] = count + 1
-            slug = step.slug if not count else f"{step.slug}-{count + 1}"
-            iface_context = _callable_context(step.interface, project_name, slug, module)
+            filename = module
+            if filename in used_filenames:
+                filename_base = f"{module}__{workflow.name}_{step.role}"
+                filename = filename_base
+                suffix = 2
+                while filename in used_filenames:
+                    filename = f"{filename_base}_{suffix}"
+                    suffix += 1
+            used_filenames.add(filename)
+            step_ref = f"{workflow.name}.{step.role}"
+            iface_context = _callable_context(step.interface, project_name, step.slug, filename)
+            iface_context["step_ref"] = step_ref
             iface_context["role"] = step.role
             iface_context["selection_score"] = 1.0
             iface_context["selection_reasons"] = []
             iface_context["language"] = plan.language
             interfaces.append(iface_context)
 
+    interfaces_by_step_ref = {iface["step_ref"]: iface for iface in interfaces}
     workflows_context: list[dict[str, Any]] = []
     for workflow in plan.workflows:
         steps_context = []
         for step in workflow.steps:
-            module = step.module
-            matching = next(
-                (iface for iface in interfaces if iface["module"] == module),
-                None,
-            )
+            step_ref = f"{workflow.name}.{step.role}"
+            matching = interfaces_by_step_ref.get(step_ref)
             if matching is None:
                 raise ValueError(
                     f"workflow {workflow.name} references unknown interface slug: {step.slug}"

@@ -6,6 +6,7 @@ import json
 from contextlib import redirect_stdout
 from pathlib import Path
 
+import pytest
 import yaml
 
 from repo_to_skill.skillgen.workflow_hints import (
@@ -154,6 +155,66 @@ def test_render_task_workflow_runner_dry_run_does_not_send(monkeypatch, tmp_path
     assert "[dry-run]" in out
     assert "EXAMPLE_SERVICE_BASE_URL" in out or "/example/querycount" in out
     assert "secret" not in out
+
+    monkeypatch.setenv("EXAMPLE_SERVICE_BASE_URL", "https://example.invalid")
+    monkeypatch.setenv("EXAMPLE_SERVICE_TOKEN", "secret")
+    with pytest.raises(AssertionError, match="runner must not send"):
+        module.main(["--keyword", "Alice", "--execute"])
+
+
+def test_render_task_workflow_disambiguates_colliding_step_modules(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    analysis = tmp_path / "analysis"
+    analysis.mkdir()
+    interfaces = [
+        _interface("example-query-count", "/routes/from-hyphen"),
+        _interface("example_query_count", "/routes/from-underscore"),
+    ]
+    (analysis / "scan.json").write_text(json.dumps({"root": str(repo), "files": []}), encoding="utf-8")
+    (analysis / "profile.json").write_text(json.dumps({"name": "zte-hrm-job-service"}), encoding="utf-8")
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps({"project": "zte-hrm-job-service", "interfaces": interfaces, "notes": []}),
+        encoding="utf-8",
+    )
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="hyphen_lookup",
+                pattern="single-query",
+                steps=(WorkflowHintStep("lookup", "example-query-count"),),
+                inputs={},
+                defaults={},
+            ),
+            WorkflowHint(
+                name="underscore_lookup",
+                pattern="single-query",
+                steps=(WorkflowHintStep("lookup", "example_query_count"),),
+                inputs={},
+                defaults={},
+            ),
+        ),
+    )
+    plan = plan_task_workflow(repo, analysis, hints=hints, need_summary="查重", language="zh-CN")
+
+    skill = render_task_workflow(plan, tmp_path / "skill")
+
+    tool_files = sorted(path.name for path in (skill / "tools").glob("*.tool.yaml"))
+    script_files = sorted(path.name for path in (skill / "scripts").glob("call_*.py"))
+    assert len(tool_files) == 2
+    assert len(script_files) == 2
+    assert len(set(tool_files)) == 2
+    assert len(set(script_files)) == 2
+    assert "example_query_count.tool.yaml" in tool_files
+    assert "call_example_query_count.py" in script_files
+
+    hyphen_workflow = yaml.safe_load((skill / "workflows" / "hyphen_lookup.yaml").read_text(encoding="utf-8"))
+    underscore_workflow = yaml.safe_load(
+        (skill / "workflows" / "underscore_lookup.yaml").read_text(encoding="utf-8")
+    )
+    assert hyphen_workflow["steps"][0]["route"] == "/routes/from-hyphen"
+    assert underscore_workflow["steps"][0]["route"] == "/routes/from-underscore"
 
 
 def test_render_task_workflow_validates(tmp_path: Path) -> None:

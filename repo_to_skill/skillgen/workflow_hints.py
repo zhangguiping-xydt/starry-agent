@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,8 @@ class WorkflowHints:
 
 
 _KNOWN_STEP_ROLES = {"count", "list", "detail", "lookup"}
+_INPUT_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+_INPUT_MAPS_TO_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _require(condition: bool, message: str) -> None:
@@ -77,7 +80,19 @@ def load_workflow_hints(path: Path) -> WorkflowHints:
 
         raw_inputs = raw_workflow.get("inputs", {})
         _require(isinstance(raw_inputs, dict), f"{workflow_path}.inputs must be a mapping")
-        inputs = {str(k): str(v) for k, v in raw_inputs.items()}
+        inputs: dict[str, str] = {}
+        for key, value in raw_inputs.items():
+            input_name = str(key)
+            maps_to = str(value)
+            _require(
+                bool(_INPUT_NAME_RE.match(input_name)),
+                f"workflows[{index}] inputs key {input_name!r}: must be a safe identifier",
+            )
+            _require(
+                bool(_INPUT_MAPS_TO_RE.match(maps_to)),
+                f"workflows[{index}] inputs key {input_name!r}: must be a safe identifier",
+            )
+            inputs[input_name] = maps_to
 
         raw_defaults = raw_workflow.get("defaults", {})
         _require(isinstance(raw_defaults, dict), f"{workflow_path}.defaults must be a mapping")

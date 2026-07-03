@@ -42,8 +42,9 @@ def _token(role_token_env: str) -> str | None:
     return os.environ.get(role_token_env) or os.environ.get(TOKEN_ENV)
 
 
-def _send_request(*_args, **_kwargs):
-    raise RuntimeError("_send_request must be patched by renderer tests")
+def _send_request(request, timeout):
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read().decode("utf-8")
 
 
 {% if workflow.pattern == "count-list-query" %}
@@ -86,8 +87,7 @@ def main(argv: list[str]) -> int:
         count_endpoint, data=count_body, method=STEP_COUNT_METHOD, headers=headers
     )
     try:
-        with urllib.request.urlopen(count_request, timeout=args.timeout) as response:
-            raw_count = response.read().decode("utf-8")
+        raw_count = _send_request(count_request, args.timeout)
     except urllib.error.URLError as error:
         print("[error] count step failed: " + str(error))
         return 1
@@ -109,8 +109,7 @@ def main(argv: list[str]) -> int:
         list_endpoint, data=list_body, method=STEP_LIST_METHOD, headers=headers
     )
     try:
-        with urllib.request.urlopen(list_request, timeout=args.timeout) as response:
-            raw_list = response.read().decode("utf-8")
+        raw_list = _send_request(list_request, args.timeout)
     except urllib.error.URLError as error:
         print("[error] list step failed: " + str(error))
         return 1

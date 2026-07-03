@@ -46,6 +46,18 @@ FORBIDDEN_TEXT = [
 ]
 
 
+def test_published_skill_catalog_includes_starry_diagram() -> None:
+    skill_path = REPO_ROOT / "skills" / "starry-diagram" / "SKILL.md"
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    readme_zh = (REPO_ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
+
+    assert skill_path.is_file()
+    skill_text = skill_path.read_text(encoding="utf-8")
+    assert "name: starry-diagram" in skill_text
+    assert "skills/starry-diagram/" in readme
+    assert "skills/starry-diagram/" in readme_zh
+
+
 def test_public_docs_exist_and_state_required_boundaries() -> None:
     combined = ""
     for path in DOC_PATHS:

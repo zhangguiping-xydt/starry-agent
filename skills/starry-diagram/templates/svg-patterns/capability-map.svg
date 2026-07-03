@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img">
+  <title>capability-map</title>
+  <rect width="320" height="180" fill="#f4f8ff"/>
+  <rect x="28" y="28" width="118" height="54" rx="10" fill="#dbeafe" stroke="#1d4ed8"/>
+  <rect x="174" y="28" width="118" height="54" rx="10" fill="#e0f2fe" stroke="#0ea5e9"/>
+  <rect x="28" y="100" width="118" height="54" rx="10" fill="#ede9fe" stroke="#7c3aed"/>
+  <rect x="174" y="100" width="118" height="54" rx="10" fill="#dcfce7" stroke="#16a34a"/>
+</svg>

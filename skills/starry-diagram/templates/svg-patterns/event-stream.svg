@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img">
+  <title>event-stream</title>
+  <rect width="320" height="180" fill="#020617"/>
+  <circle cx="50" cy="90" r="18" fill="#38bdf8"/>
+  <path d="M76 90 H244" stroke="#94a3b8" stroke-width="4" fill="none"/>
+  <path d="M232 78 L252 90 L232 102" fill="none" stroke="#94a3b8" stroke-width="4"/>
+  <circle cx="270" cy="90" r="18" fill="#a78bfa"/>
+</svg>

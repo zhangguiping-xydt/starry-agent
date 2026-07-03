@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img">
+  <title>bounded-context</title>
+  <rect width="320" height="180" fill="#fff7ed"/>
+  <rect x="34" y="32" width="112" height="116" rx="16" fill="#ffedd5" stroke="#f97316"/>
+  <rect x="174" y="32" width="112" height="116" rx="16" fill="#dcfce7" stroke="#22c55e"/>
+  <path d="M146 90 H174" stroke="#78716c" stroke-width="3" stroke-dasharray="6 5"/>
+</svg>

@@ -1,0 +1,40 @@
+id: architecture-overview
+title: 架构总览
+type: architecture
+source_format: graphviz
+visual_style:
+  style_id: clean-technical
+  enhancement_level: strong
+canvas:
+  width: 1280
+  height: 720
+  viewBox: "0 0 1280 720"
+nodes:
+  - id: frontend-chat-entry
+    label: 前端对话入口
+    kind: ui
+    required: true
+  - id: workflow-orchestration-service
+    label: 工作流编排服务
+    kind: service
+    required: true
+edges:
+  - id: frontend-to-workflow
+    from: frontend-chat-entry
+    to: workflow-orchestration-service
+    label: 提交对话任务
+    required: true
+groups:
+  - id: application-runtime
+    label: 应用运行时
+    members:
+      - frontend-chat-entry
+      - workflow-orchestration-service
+style_tokens:
+  background: "#f8fafc"
+  surface: "#ffffff"
+  primary: "#2563eb"
+  accent: "#14b8a6"
+  text: "#0f172a"
+  muted: "#64748b"
+  line: "#94a3b8"

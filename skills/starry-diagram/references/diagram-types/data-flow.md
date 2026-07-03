@@ -1,0 +1,3 @@
+# Data Flow
+
+Generate when source material describes collection, transformation, storage, sync, or consumption. Prefer Graphviz or Mermaid. Use strong visual enhancement after the semantic gate passes. Data-flow is not event-flow: data edges describe movement, transformation, persistence, or consumption of data, not facts emitted after state changes. If the source includes commands, events, or projection/read-model updates, either mark those edges explicitly as `kind: command`, `kind: event`, or `kind: projection` in the lock, or move that content to a sequence/event-flow diagram where the semantics are primary.

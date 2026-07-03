@@ -9,6 +9,7 @@
 | Path | Kind | Description |
 |------|------|-------------|
 | [`skills/repo-to-skill/`](skills/repo-to-skill/) | Skill | The skill that wraps the `repo-to-skill` CLI for agent invocation. |
+| [`skills/starry-diagram/`](skills/starry-diagram/) | Skill | A diagram-pack skill for architecture, business, flow, sequence, ER, deployment, and polished SVG diagrams. |
 | [`repo_to_skill/`](repo_to_skill/) + [`pyproject.toml`](pyproject.toml) | Tool + library | The `repo-to-skill` CLI: turn a local repo and a goal into installable callable skills. |
 | [`docs/`](docs/) | Docs | Bilingual how-it-works, skill reference, architecture, security. |
 

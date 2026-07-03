@@ -1,0 +1,30 @@
+project: 示例项目
+mode: diagram-pack
+source_summary: 基于需求、PRD、技术设计和架构笔记提取的图谱候选。
+naming_glossary:
+  auth-service:
+    label: 认证服务
+    aliases:
+      - Auth Service
+      - Authentication API
+diagrams:
+  - id: architecture-overview
+    title: 架构总览
+    type: architecture
+    status: generated
+    reason: source includes modules, services, stores, runtime boundaries, and external systems.
+    source_refs:
+      - architecture-notes.md#runtime
+    style_id: clean-technical
+    output_dir: architecture-overview
+  - id: domain-er
+    title: 领域实体关系
+    type: er
+    status: skipped
+    reason: source lacks explicit fields, keys, and cardinalities.
+    missing:
+      - fields
+      - keys
+      - cardinalities
+    source_refs: []
+    style_id: clean-technical

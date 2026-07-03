@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img">
+  <title>layered-system</title>
+  <rect width="320" height="180" fill="#f8fafc"/>
+  <rect x="40" y="30" width="240" height="32" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+  <rect x="40" y="74" width="240" height="32" rx="8" fill="#e0f2fe" stroke="#0ea5e9"/>
+  <rect x="40" y="118" width="240" height="32" rx="8" fill="#ccfbf1" stroke="#14b8a6"/>
+</svg>

@@ -1,0 +1,8 @@
+id: blueprint
+background: "#0b1f3a"
+surface: "#102a4c"
+primary: "#60a5fa"
+accent: "#93c5fd"
+text: "#dbeafe"
+muted: "#93a4b8"
+line: "#3b82f6"

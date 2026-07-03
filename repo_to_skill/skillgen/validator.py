@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,6 +79,13 @@ REQUIRED_MANIFEST_SAFETY = {
 }
 
 REQUIRED_CALLABLE_SAFETY = {
+    "dry_run_default": True,
+    "network": "requires-explicit-endpoint",
+    "dependency_install": "disabled",
+    "target_repository_writes": "disabled",
+}
+
+REQUIRED_TASK_WORKFLOW_SAFETY = {
     "dry_run_default": True,
     "network": "requires-explicit-endpoint",
     "dependency_install": "disabled",
@@ -561,8 +569,6 @@ def _check_composite_orchestrator(root: Path, findings: list[str]) -> None:
         return  # already flagged by required-files check
     content = _text(path)
     try:
-        import ast
-
         ast.parse(content)
     except SyntaxError as exc:
         findings.append(f"orchestrator.py syntax error: {exc.msg} (line {exc.lineno})")
@@ -591,6 +597,111 @@ def _validate_callable_composite(root: Path, findings: list[str]) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Task-workflow branch
+# --------------------------------------------------------------------------- #
+
+
+def _check_task_workflow_required_files(root: Path, findings: list[str]) -> None:
+    for relative in (
+        "manifest.yaml",
+        "SKILL.md",
+        "references/workflow-source.md",
+        "references/service-config.md",
+    ):
+        if not (root / relative).is_file():
+            findings.append(f"missing required file: {relative}")
+    if not list((root / "workflows").glob("*.yaml")):
+        findings.append("task-workflow skill must contain at least one workflows/*.yaml")
+    if not list((root / "scripts").glob("run_*.py")):
+        findings.append("task-workflow skill must contain at least one scripts/run_*.py")
+    if not list((root / "tools").glob("*.tool.yaml")):
+        findings.append("task-workflow skill must contain at least one tools/*.tool.yaml")
+
+
+def _check_task_workflow_manifest(root: Path, findings: list[str]) -> dict[str, Any]:
+    manifest = _load_yaml_mapping(root / "manifest.yaml")
+    if manifest is None:
+        findings.append("invalid manifest.yaml: root must be a mapping")
+        return {}
+
+    for key in ("name", "version", "summary", "generated_by"):
+        if key not in manifest:
+            findings.append(f"manifest.yaml missing field: {key}")
+    if manifest.get("kind") != "task-workflow":
+        findings.append("manifest.yaml kind must be 'task-workflow'")
+
+    service = manifest.get("service") if isinstance(manifest.get("service"), dict) else {}
+    if not str(service.get("env_prefix") or "").strip():
+        findings.append("manifest.yaml service.env_prefix must be set")
+    if not str(service.get("base_url_env") or "").strip():
+        findings.append("manifest.yaml service.base_url_env must be set")
+    if not str(service.get("token_env") or "").strip():
+        findings.append("manifest.yaml service.token_env must be set")
+
+    safety = manifest.get("safety") if isinstance(manifest.get("safety"), dict) else {}
+    for key, expected in REQUIRED_TASK_WORKFLOW_SAFETY.items():
+        if safety.get(key) != expected:
+            findings.append(f"manifest.yaml safety.{key} must be {expected!r}")
+
+    interfaces = manifest.get("interfaces") if isinstance(manifest.get("interfaces"), list) else []
+    for iface in interfaces:
+        if not isinstance(iface, dict):
+            findings.append("manifest.yaml interfaces entries must be mappings")
+            continue
+        side_effects = str(iface.get("side_effects") or "unknown").lower()
+        if side_effects == "write":
+            findings.append(
+                f"manifest.yaml interface {iface.get('slug')} has side_effects=write; "
+                "task-workflow must be read-only"
+            )
+
+    workflows = manifest.get("workflows") if isinstance(manifest.get("workflows"), list) else []
+    if not workflows:
+        findings.append("manifest.yaml workflows must contain at least one entry")
+    for workflow in workflows:
+        if not isinstance(workflow, dict) or not workflow.get("name") or not workflow.get("file"):
+            findings.append("manifest.yaml workflow entries must have name and file")
+            continue
+        if not (root / workflow["file"]).is_file():
+            findings.append(f"manifest.yaml references missing workflow file: {workflow['file']}")
+
+    return manifest
+
+
+_TASK_WORKFLOW_FORBIDDEN_TOKENS = (
+    '"hardcoded-token"',
+    "'hardcoded-token'",
+    "Bearer hardcoded",
+)
+
+
+def _check_task_workflow_runners(root: Path, findings: list[str]) -> None:
+    for runner in sorted((root / "scripts").glob("run_*.py")):
+        content = _text(runner)
+        rel = runner.relative_to(root)
+        try:
+            ast.parse(content)
+        except SyntaxError as exc:
+            findings.append(f"{rel} syntax error: {exc.msg} (line {exc.lineno})")
+            continue
+        for marker in ("BASE_URL_ENV =", "TOKEN_ENV ="):
+            if marker not in content:
+                findings.append(f"{rel} missing safety marker: {marker}")
+        for token in _TASK_WORKFLOW_FORBIDDEN_TOKENS:
+            if token in content:
+                findings.append(f"{rel} contains hardcoded token: {token}")
+        if "args.dry_run" not in content or "args.execute" not in content:
+            findings.append(f"{rel} must respect --dry-run and --execute")
+
+
+def _validate_task_workflow(root: Path, findings: list[str]) -> None:
+    _check_task_workflow_required_files(root, findings)
+    _check_task_workflow_manifest(root, findings)
+    _check_task_workflow_runners(root, findings)
+    _check_machine_paths(root, findings, include_all_skill_files=True)
+
+
+# --------------------------------------------------------------------------- #
 # Entry point
 # --------------------------------------------------------------------------- #
 
@@ -610,6 +721,8 @@ def validate_skill(skill_path: Path) -> SkillValidationReport:
         _validate_callable_bundle(root, findings)
     elif kind == "callable-composite":
         _validate_callable_composite(root, findings)
+    elif kind == "task-workflow":
+        _validate_task_workflow(root, findings)
     else:
         _validate_readonly(root, findings)
 

@@ -90,7 +90,7 @@ def load_workflow_hints(path: Path) -> WorkflowHints:
             )
             _require(
                 bool(_INPUT_MAPS_TO_RE.match(maps_to)),
-                f"workflows[{index}] inputs key {input_name!r}: must be a safe identifier",
+                f"workflows[{index}] inputs key {input_name!r}: maps_to {maps_to!r} must be a safe identifier",
             )
             inputs[input_name] = maps_to
 

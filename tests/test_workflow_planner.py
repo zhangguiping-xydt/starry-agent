@@ -103,11 +103,11 @@ def test_load_workflow_hints_rejects_unsafe_input_maps_to(tmp_path: Path) -> Non
         },
     )
 
-    with pytest.raises(
-        ValueError,
-        match=r"workflows\[0\] inputs key 'keyword': must be a safe identifier",
-    ):
+    with pytest.raises(ValueError) as exc:
         load_workflow_hints(path)
+
+    assert "workflows[0] inputs key 'keyword'" in str(exc.value)
+    assert 'q"q' in str(exc.value)
 
 
 def test_service_env_prefix_converts_project_name() -> None:

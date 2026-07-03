@@ -219,7 +219,32 @@ def test_plan_task_workflow_rejects_count_list_wrong_roles(tmp_path: Path) -> No
         ),
     )
 
-    with pytest.raises(ValueError, match="count-list-query requires steps"):
+    with pytest.raises(
+        ValueError,
+        match=r"query_records.*count-list-query requires steps",
+    ):
+        plan_task_workflow(repo, analysis, hints=hints, need_summary="查询", language="en")
+
+
+def test_plan_task_workflow_rejects_unsafe_workflow_name(tmp_path: Path) -> None:
+    interfaces = [
+        _interface("example-query", "/example/query", side_effects="read"),
+    ]
+    repo, analysis = _analysis(tmp_path, interfaces)
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="bad/name",
+                pattern="single-query",
+                steps=(WorkflowHintStep("lookup", "example-query"),),
+                inputs={},
+                defaults={},
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="workflow name is not a safe slug"):
         plan_task_workflow(repo, analysis, hints=hints, need_summary="查询", language="en")
 
 
@@ -280,3 +305,25 @@ def test_plan_task_workflow_fails_without_hints_when_pattern_unknown(tmp_path: P
 
     with pytest.raises(ValueError, match="cannot generate task-workflow"):
         plan_task_workflow(repo, analysis, hints=None, need_summary="anything", language="en")
+
+
+def test_plan_task_workflow_wraps_missing_artifact(tmp_path: Path) -> None:
+    interfaces = [_interface("example-query", "/example/query", side_effects="read")]
+    repo, analysis = _analysis(tmp_path, interfaces)
+    (analysis / "callable_capabilities.json").unlink()
+
+    hints = WorkflowHints(service_env_prefix="EXAMPLE_SERVICE", workflows=())
+
+    with pytest.raises(ValueError, match="missing analysis artifact"):
+        plan_task_workflow(repo, analysis, hints=hints, need_summary="查询", language="en")
+
+
+def test_plan_task_workflow_wraps_invalid_json(tmp_path: Path) -> None:
+    interfaces = [_interface("example-query", "/example/query", side_effects="read")]
+    repo, analysis = _analysis(tmp_path, interfaces)
+    (analysis / "callable_capabilities.json").write_text("not json", encoding="utf-8")
+
+    hints = WorkflowHints(service_env_prefix="EXAMPLE_SERVICE", workflows=())
+
+    with pytest.raises(ValueError, match="invalid analysis artifact"):
+        plan_task_workflow(repo, analysis, hints=hints, need_summary="查询", language="en")

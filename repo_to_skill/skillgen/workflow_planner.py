@@ -27,6 +27,7 @@ def service_env_names(env_prefix: str) -> dict[str, str]:
 
 
 _READ_SAFE_METHODS = {"GET"}
+_WORKFLOW_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 @dataclass(frozen=True)
@@ -75,6 +76,10 @@ class TaskWorkflowPlan:
     need_summary: str
     language: str = "en"
 
+    @property
+    def project_name(self) -> str:
+        return self.service.name
+
 
 _WRITE_INTERFACE_TOKENS = (
     "save", "update", "delete", "create", "submit", "push",
@@ -83,9 +88,14 @@ _WRITE_INTERFACE_TOKENS = (
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
+    if not path.exists():
+        raise ValueError(f"missing analysis artifact: {path.name}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid analysis artifact: {path.name}") from exc
     if not isinstance(data, dict):
-        raise ValueError(f"{path.name} must contain a JSON object")
+        raise ValueError(f"analysis artifact must be an object: {path.name}")
     return data
 
 
@@ -125,6 +135,10 @@ def _interface_index(callable_capabilities: dict[str, Any]) -> dict[str, dict[st
 def _build_workflow(hint: WorkflowHint, interfaces_by_slug: dict[str, dict[str, Any]]) -> WorkflowPlan:
     if not hint.steps:
         raise ValueError(f"workflow '{hint.name}' must declare at least one step")
+    if hint.pattern == "count-list-query" and [step.role for step in hint.steps] != ["count", "list"]:
+        raise ValueError(
+            f"workflow '{hint.name}': count-list-query requires steps in order count, list"
+        )
 
     resolved_steps: list[WorkflowStep] = []
     for hint_step in hint.steps:
@@ -189,6 +203,15 @@ def plan_task_workflow(
     workflows: list[WorkflowPlan] = []
     for hint in hints.workflows:
         workflows.append(_build_workflow(hint, interfaces_by_slug))
+
+    seen_workflow_names: set[str] = set()
+    for workflow in workflows:
+        name = workflow.name
+        if not _WORKFLOW_NAME_RE.match(name):
+            raise ValueError(f"workflow name is not a safe slug: {name!r}")
+        if name in seen_workflow_names:
+            raise ValueError(f"duplicate workflow name in hints: {name!r}")
+        seen_workflow_names.add(name)
 
     if not workflows:
         raise ValueError(

@@ -168,6 +168,90 @@ def test_plan_task_workflow_count_list_query(tmp_path: Path) -> None:
     assert workflow.inputs[0].maps_to == "nameConcat"
 
 
+def test_task_workflow_plan_has_project_name_property(tmp_path: Path) -> None:
+    interfaces = [
+        _interface("example-query", "/example/query", side_effects="read"),
+    ]
+    repo, analysis = _analysis(tmp_path, interfaces)
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="query_records",
+                pattern="single-query",
+                steps=(WorkflowHintStep("lookup", "example-query"),),
+                inputs={},
+                defaults={},
+            ),
+        ),
+    )
+
+    plan = plan_task_workflow(
+        repo,
+        analysis,
+        hints=hints,
+        need_summary="按关键词查询记录",
+        language="zh-CN",
+    )
+
+    assert plan.project_name == plan.service.name == "zte-hrm-job-service"
+
+
+def test_plan_task_workflow_rejects_count_list_wrong_roles(tmp_path: Path) -> None:
+    interfaces = [
+        _interface("example-query-count", "/example/querycount", side_effects="read"),
+        _interface("example-query-list", "/example/querylist", side_effects="read"),
+    ]
+    repo, analysis = _analysis(tmp_path, interfaces)
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="query_records",
+                pattern="count-list-query",
+                steps=(
+                    WorkflowHintStep("list", "example-query-list"),
+                    WorkflowHintStep("count", "example-query-count"),
+                ),
+                inputs={},
+                defaults={},
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="count-list-query requires steps"):
+        plan_task_workflow(repo, analysis, hints=hints, need_summary="查询", language="en")
+
+
+def test_plan_task_workflow_rejects_duplicate_workflow_names(tmp_path: Path) -> None:
+    interfaces = [
+        _interface("example-query", "/example/query", side_effects="read"),
+    ]
+    repo, analysis = _analysis(tmp_path, interfaces)
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="query_records",
+                pattern="single-query",
+                steps=(WorkflowHintStep("lookup", "example-query"),),
+                inputs={},
+                defaults={},
+            ),
+            WorkflowHint(
+                name="query_records",
+                pattern="single-query",
+                steps=(WorkflowHintStep("lookup", "example-query"),),
+                inputs={},
+                defaults={},
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="duplicate workflow name"):
+        plan_task_workflow(repo, analysis, hints=hints, need_summary="查询", language="en")
+
+
 def test_plan_task_workflow_rejects_write_interface(tmp_path: Path) -> None:
     interfaces = [
         _interface("example-save", "/example/save", side_effects="write"),

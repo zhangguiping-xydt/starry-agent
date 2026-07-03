@@ -9,6 +9,10 @@ from repo_to_skill.skillgen.workflow_hints import (
     WorkflowHints,
     load_workflow_hints,
 )
+from repo_to_skill.skillgen.workflow_planner import (
+    derive_service_env_prefix,
+    service_env_names,
+)
 
 
 def _write_hints(tmp_path: Path, payload: dict) -> Path:
@@ -57,15 +61,11 @@ def test_load_workflow_hints_rejects_non_list_workflows(tmp_path: Path) -> None:
         load_workflow_hints(path)
 
 
-from repo_to_skill.skillgen.workflow_planner import (
-    derive_service_env_prefix,
-    service_env_names,
-)
-
-
 def test_service_env_prefix_converts_project_name() -> None:
     assert derive_service_env_prefix("zte-hrm-job-service") == "ZTE_HRM_JOB_SERVICE"
     assert derive_service_env_prefix("corehr-businessprocess") == "COREHR_BUSINESSPROCESS"
+    assert derive_service_env_prefix("---") == "LOCAL_REPOSITORY"
+    assert derive_service_env_prefix("foo---bar___baz") == "FOO_BAR_BAZ"
 
 
 def test_service_env_names_build_base_url_and_token_envs() -> None:

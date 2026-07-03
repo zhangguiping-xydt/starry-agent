@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import importlib
-import json
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 import typer
@@ -36,7 +33,7 @@ from repo_to_skill.skillgen.renderer import (
     render_task_workflow,
 )
 from repo_to_skill.skillgen.validator import SkillValidationReport, validate_skill
-from repo_to_skill.skillgen.workflow_hints import WorkflowHints, load_workflow_hints
+from repo_to_skill.skillgen.workflow_hints import load_workflow_hints
 from repo_to_skill.skillgen.workflow_planner import plan_task_workflow
 from repo_to_skill.workspace.paths import resolve_target_and_output
 from repo_to_skill.workspace.store import ArtifactStore
@@ -225,43 +222,6 @@ def _generate_callable_composite(
     return report.status == "PASS"
 
 
-def _analysis_with_hinted_unknown_interfaces_as_read(
-    analysis: Path,
-    hints: WorkflowHints | None,
-) -> tuple[Path, tempfile.TemporaryDirectory[str] | None]:
-    if hints is None:
-        return analysis, None
-
-    analysis_root = analysis.expanduser().resolve()
-    if analysis_root.is_file():
-        analysis_root = analysis_root.parent
-    capabilities_path = analysis_root / "callable_capabilities.json"
-    if not capabilities_path.is_file():
-        return analysis, None
-
-    hinted_slugs = {step.slug for workflow in hints.workflows for step in workflow.steps}
-    capabilities = json.loads(capabilities_path.read_text(encoding="utf-8"))
-    changed = False
-    for interface in capabilities.get("interfaces") or []:
-        if not isinstance(interface, dict) or interface.get("slug") not in hinted_slugs:
-            continue
-        if str(interface.get("side_effects") or "unknown").lower() == "unknown":
-            interface["side_effects"] = "read"
-            changed = True
-
-    if not changed:
-        return analysis, None
-
-    temporary = tempfile.TemporaryDirectory()
-    temporary_root = Path(temporary.name)
-    shutil.copytree(analysis_root, temporary_root, dirs_exist_ok=True)
-    (temporary_root / "callable_capabilities.json").write_text(
-        json.dumps(capabilities, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return temporary_root, temporary
-
-
 def _generate_task_workflow(
     target: Path,
     analysis: Path,
@@ -279,23 +239,18 @@ def _generate_task_workflow(
         return True
 
     hints = load_workflow_hints(workflow_hints) if workflow_hints else None
-    workflow_analysis, temporary_analysis = _analysis_with_hinted_unknown_interfaces_as_read(analysis, hints)
 
     try:
-        try:
-            plan = plan_task_workflow(
-                target_root,
-                workflow_analysis,
-                hints=hints,
-                need_summary=need,
-                language=language,
-            )
-        except ValueError as exc:
-            console.print(f"cannot generate task-workflow: {exc}")
-            return False
-    finally:
-        if temporary_analysis is not None:
-            temporary_analysis.cleanup()
+        plan = plan_task_workflow(
+            target_root,
+            analysis,
+            hints=hints,
+            need_summary=need,
+            language=language,
+        )
+    except ValueError as exc:
+        console.print(f"cannot generate task-workflow: {exc}")
+        return False
 
     skill = render_task_workflow(plan, output_root)
     report = validate_skill(skill)

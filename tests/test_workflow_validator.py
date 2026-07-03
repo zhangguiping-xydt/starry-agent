@@ -102,6 +102,22 @@ def test_task_workflow_validator_flags_missing_workflow_file(tmp_path: Path) -> 
     assert any("workflows/" in finding for finding in report.findings)
 
 
+def test_task_workflow_validator_flags_non_string_workflow_file(tmp_path: Path) -> None:
+    skill = _rendered_skill(tmp_path)
+    manifest_path = skill / "manifest.yaml"
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest_text = manifest_text.replace(
+        "file: workflows/query_records.yaml",
+        'file: ["workflows/query_records.yaml"]',
+    )
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+
+    report = validate_skill(skill)
+
+    assert report.status == "FAIL"
+    assert any("string name and file" in finding for finding in report.findings)
+
+
 def test_task_workflow_validator_flags_write_interface(tmp_path: Path) -> None:
     skill = _rendered_skill(tmp_path)
     manifest_path = skill / "manifest.yaml"

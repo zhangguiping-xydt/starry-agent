@@ -659,11 +659,18 @@ def _check_task_workflow_manifest(root: Path, findings: list[str]) -> dict[str, 
     if not workflows:
         findings.append("manifest.yaml workflows must contain at least one entry")
     for workflow in workflows:
-        if not isinstance(workflow, dict) or not workflow.get("name") or not workflow.get("file"):
-            findings.append("manifest.yaml workflow entries must have name and file")
+        name_value = workflow.get("name") if isinstance(workflow, dict) else None
+        file_value = workflow.get("file") if isinstance(workflow, dict) else None
+        if (
+            not isinstance(name_value, str)
+            or not name_value.strip()
+            or not isinstance(file_value, str)
+            or not file_value.strip()
+        ):
+            findings.append("manifest.yaml workflow entries must have string name and file")
             continue
-        if not (root / workflow["file"]).is_file():
-            findings.append(f"manifest.yaml references missing workflow file: {workflow['file']}")
+        if not (root / file_value).is_file():
+            findings.append(f"manifest.yaml references missing workflow file: {file_value}")
 
     return manifest
 
@@ -692,6 +699,10 @@ def _check_task_workflow_runners(root: Path, findings: list[str]) -> None:
                 findings.append(f"{rel} contains hardcoded token: {token}")
         if "args.dry_run" not in content or "args.execute" not in content:
             findings.append(f"{rel} must respect --dry-run and --execute")
+        if '"--execute"' not in content and "'--execute'" not in content:
+            findings.append(f"{rel} must define an --execute flag")
+        if '"--dry-run"' not in content and "'--dry-run'" not in content:
+            findings.append(f"{rel} must define a --dry-run flag")
 
 
 def _validate_task_workflow(root: Path, findings: list[str]) -> None:

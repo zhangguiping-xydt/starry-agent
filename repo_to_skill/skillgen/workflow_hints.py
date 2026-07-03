@@ -48,27 +48,40 @@ def load_workflow_hints(path: Path) -> WorkflowHints:
         "service_env_prefix must be UPPER_SNAKE_CASE",
     )
 
+    raw_workflows = raw.get("workflows", [])
+    _require(isinstance(raw_workflows, list), "workflows must be a list")
+
     workflows: list[WorkflowHint] = []
-    for raw_workflow in raw.get("workflows") or []:
-        _require(isinstance(raw_workflow, dict), "workflow hint must be a mapping")
+    for index, raw_workflow in enumerate(raw_workflows):
+        workflow_path = f"workflows[{index}]"
+        _require(isinstance(raw_workflow, dict), f"{workflow_path} must be a mapping")
         name = str(raw_workflow.get("name") or "").strip()
         pattern = str(raw_workflow.get("pattern") or "").strip()
-        _require(name, "workflow hint name must be set")
-        _require(pattern in {"single-query", "count-list-query", "lookup-detail"},
-                 f"unsupported workflow pattern: {pattern}")
+        _require(name, f"{workflow_path} name must be set")
+        workflow_path = f"workflows[{index}] ({name})"
+        _require(
+            pattern in {"single-query", "count-list-query", "lookup-detail"},
+            f"{workflow_path} unsupported workflow pattern: {pattern}",
+        )
 
-        raw_steps = raw_workflow.get("steps") or {}
-        _require(isinstance(raw_steps, dict), "workflow steps must be a mapping")
+        raw_steps = raw_workflow.get("steps", {})
+        _require(isinstance(raw_steps, dict), f"{workflow_path}.steps must be a mapping")
         parsed_steps: list[WorkflowHintStep] = []
         for role, slug in raw_steps.items():
-            _require(role in _KNOWN_STEP_ROLES, f"unknown workflow step role: {role}")
-            parsed_steps.append(WorkflowHintStep(role=role, slug=str(slug)))
+            _require(role in _KNOWN_STEP_ROLES, f"{workflow_path}.steps unknown role: {role}")
+            _require(
+                isinstance(slug, str) and slug.strip(),
+                f"{workflow_path}.steps.{role} must be a non-empty string slug",
+            )
+            parsed_steps.append(WorkflowHintStep(role=role, slug=slug))
 
-        raw_inputs = raw_workflow.get("inputs") or {}
-        _require(isinstance(raw_inputs, dict), "workflow inputs must be a mapping")
+        raw_inputs = raw_workflow.get("inputs", {})
+        _require(isinstance(raw_inputs, dict), f"{workflow_path}.inputs must be a mapping")
         inputs = {str(k): str(v) for k, v in raw_inputs.items()}
 
-        defaults = dict(raw_workflow.get("defaults") or {})
+        raw_defaults = raw_workflow.get("defaults", {})
+        _require(isinstance(raw_defaults, dict), f"{workflow_path}.defaults must be a mapping")
+        defaults = dict(raw_defaults)
         workflows.append(
             WorkflowHint(
                 name=name,

@@ -48,3 +48,10 @@ def test_load_workflow_hints_rejects_unknown_top_level_key(tmp_path: Path) -> No
 
     with pytest.raises(ValueError, match="unknown hints key: bogus"):
         load_workflow_hints(path)
+
+
+def test_load_workflow_hints_rejects_non_list_workflows(tmp_path: Path) -> None:
+    path = _write_hints(tmp_path, {"service_env_prefix": "X", "workflows": {}})
+
+    with pytest.raises(ValueError, match="workflows must be a list"):
+        load_workflow_hints(path)

@@ -1,0 +1,22 @@
+# Workflow source
+
+{% for workflow in workflows %}
+## {{ workflow.name }} ({{ workflow.pattern }})
+
+{{ workflow.intent }}
+
+Steps:
+{% for step in workflow.steps %}
+- `{{ step.role }}` -> `{{ step.slug }}` (`{{ step.interface.http_method }} {{ step.interface.route }}`)
+{% endfor %}
+
+Inputs:
+{% for input in workflow.inputs %}
+- `{{ input.name }}` -> `{{ input.maps_to }}`
+{% endfor %}
+
+Defaults:
+{% for key, value in workflow.defaults.items() %}
+- `{{ key }}`: {{ value }}
+{% endfor %}
+{% endfor %}

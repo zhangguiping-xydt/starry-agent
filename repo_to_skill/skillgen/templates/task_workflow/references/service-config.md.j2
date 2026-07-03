@@ -1,0 +1,16 @@
+# Service configuration
+
+Set once for the whole skill:
+
+- `{{ service.base_url_env }}` — base URL of the service.
+- `{{ service.token_env }}` — bearer token for the service.
+
+Per-interface overrides are optional:
+
+{% for interface in interfaces %}
+- `{{ interface.endpoint_env }}` overrides the endpoint for `{{ interface.slug }}`.
+- `{{ interface.token_env }}` overrides the token for `{{ interface.slug }}`.
+{% endfor %}
+
+Default endpoint resolution: `{{ service.base_url_env }}.rstrip("/") + route`.
+Default token resolution: `{{ service.token_env }}`.

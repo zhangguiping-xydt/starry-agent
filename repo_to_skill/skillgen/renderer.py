@@ -14,6 +14,7 @@ from repo_to_skill.skillgen.planner import (
     CallableSkillPlan,
     SkillPlan,
 )
+from repo_to_skill.skillgen.workflow_planner import TaskWorkflowPlan
 
 
 _ABSOLUTE_PATH_PATTERNS = (
@@ -802,6 +803,139 @@ def render_callable_composite(plan: CallableCompositePlan, output: Path) -> Path
         }
         for relative_path, template_name in outputs.items():
             rendered = env.get_template(template_name).render(**step)
+            rendered = _strip_machine_paths(rendered)
+            (skill_root / relative_path).write_text(rendered, encoding="utf-8")
+
+    return skill_root
+
+
+def _task_workflow_skill_description(
+    project_name: str, need_summary: str, workflow_count: int, language: str = "en"
+) -> str:
+    if language == "zh-CN":
+        return _inline_text(
+            f"当你需要通过 {project_name} 系统的预定义 workflow（{workflow_count} 个）完成"
+            f"“{need_summary}”而不是实时拼接 API 时使用。"
+        )
+    return _inline_text(
+        f"Use when you need the {project_name} system's predefined workflows "
+        f"({workflow_count}) to accomplish \"{need_summary}\" rather than "
+        "improvising API chains at runtime."
+    )
+
+
+def _task_workflow_context(plan: TaskWorkflowPlan) -> dict[str, Any]:
+    project_name = _inline_text(plan.project_name, "local-repository")
+    bundle_slug = _safe_name(plan.need_summary or plan.project_name)
+
+    interfaces: list[dict[str, Any]] = []
+    used_modules: dict[str, int] = {}
+    for workflow in plan.workflows:
+        for step in workflow.steps:
+            module = step.module
+            count = used_modules.get(module, 0)
+            used_modules[module] = count + 1
+            slug = step.slug if not count else f"{step.slug}-{count + 1}"
+            iface_context = _callable_context(step.interface, project_name, slug, module)
+            iface_context["role"] = step.role
+            iface_context["selection_score"] = 1.0
+            iface_context["selection_reasons"] = []
+            iface_context["language"] = plan.language
+            interfaces.append(iface_context)
+
+    workflows_context: list[dict[str, Any]] = []
+    for workflow in plan.workflows:
+        steps_context = []
+        for step in workflow.steps:
+            module = step.module
+            matching = next(
+                (iface for iface in interfaces if iface["module"] == module),
+                None,
+            )
+            if matching is None:
+                raise ValueError(
+                    f"workflow {workflow.name} references unknown interface slug: {step.slug}"
+                )
+            steps_context.append({
+                "role": step.role,
+                "slug": step.slug,
+                "interface": matching,
+            })
+        workflows_context.append({
+            "name": workflow.name,
+            "pattern": workflow.pattern,
+            "intent": workflow.intent,
+            "inputs": [
+                {"name": i.name, "type": i.type, "maps_to": i.maps_to, "required": i.required}
+                for i in workflow.inputs
+            ],
+            "defaults": dict(workflow.defaults),
+            "steps": steps_context,
+        })
+
+    need_summary = _inline_text(plan.need_summary, "Run predefined task workflows.")
+    return {
+        "project_name": project_name,
+        "bundle_slug": bundle_slug,
+        "need_summary": need_summary,
+        "service": {
+            "name": plan.service.name,
+            "env_prefix": plan.service.env_prefix,
+            "base_url_env": plan.service.base_url_env,
+            "token_env": plan.service.token_env,
+        },
+        "workflows": workflows_context,
+        "interfaces": interfaces,
+        "skill_description": _task_workflow_skill_description(
+            project_name, need_summary, len(workflows_context), plan.language
+        ),
+        "generated_by": "repo-to-skill",
+        "language": plan.language,
+        "yaml_quote": _yaml_double_quoted,
+    }
+
+
+def render_task_workflow(plan: TaskWorkflowPlan, output: Path) -> Path:
+    """Render one task-workflow skill directory."""
+    output_root = output.expanduser().resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    env = _template_env()
+    context = _task_workflow_context(plan)
+    skill_root = output_root / context["bundle_slug"]
+    for sub in ("scripts", "tools", "references", "workflows"):
+        (skill_root / sub).mkdir(parents=True, exist_ok=True)
+
+    top_outputs = {
+        "SKILL.md": "task_workflow/SKILL.md.j2",
+        "manifest.yaml": "task_workflow/manifest.yaml.j2",
+        "references/workflow-source.md": "task_workflow/references/workflow-source.md.j2",
+        "references/service-config.md": "task_workflow/references/service-config.md.j2",
+    }
+    for relative_path, template_name in top_outputs.items():
+        rendered = env.get_template(template_name).render(**context)
+        rendered = _strip_machine_paths(rendered)
+        (skill_root / relative_path).write_text(rendered, encoding="utf-8")
+
+    for workflow in context["workflows"]:
+        workflow_context = dict(context)
+        workflow_context["workflow"] = workflow
+        rendered = env.get_template("task_workflow/workflow.yaml.j2").render(**workflow_context)
+        rendered = _strip_machine_paths(rendered)
+        (skill_root / "workflows" / f"{workflow['name']}.yaml").write_text(rendered, encoding="utf-8")
+
+        runner_context = dict(context)
+        runner_context["workflow"] = workflow
+        rendered = env.get_template("task_workflow/scripts/run_workflow.py.j2").render(**runner_context)
+        rendered = _strip_machine_paths(rendered)
+        (skill_root / "scripts" / f"run_{workflow['name']}.py").write_text(rendered, encoding="utf-8")
+
+    for interface in context["interfaces"]:
+        for relative_path, template_name in (
+            (f"tools/{interface['module']}.tool.yaml", "callable/tools/tool.yaml.j2"),
+            (f"scripts/call_{interface['module']}.py", "callable/scripts/call.py.j2"),
+        ):
+            rendered = env.get_template(template_name).render(**interface)
             rendered = _strip_machine_paths(rendered)
             (skill_root / relative_path).write_text(rendered, encoding="utf-8")
 

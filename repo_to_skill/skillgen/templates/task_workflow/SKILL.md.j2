@@ -1,0 +1,35 @@
+---
+name: {{ bundle_slug }}
+description: {{ yaml_quote(skill_description) }}
+kind: task-workflow
+---
+
+# {{ project_name }} · {{ bundle_slug }}
+
+{{ need_summary }}
+
+## Workflows
+
+{% for workflow in workflows %}
+- `{{ workflow.name }}` ({{ workflow.pattern }}) — `python scripts/run_{{ workflow.name }}.py ...`
+{% endfor %}
+
+## Configure
+
+```bash
+export {{ service.base_url_env }}="https://example.internal"
+export {{ service.token_env }}="<token>"
+```
+
+Per-interface overrides are optional. See `references/service-config.md`.
+
+## Dry-run by default
+
+Without `--execute`, every runner prints the planned request and touches
+nothing. Pass `--execute` once you have configured `{{ service.base_url_env }}`
+and `{{ service.token_env }}`.
+
+## Provenance
+
+- `references/workflow-source.md` — workflow pattern, steps, inputs, defaults.
+- `references/service-config.md` — service-level and per-interface env vars.

@@ -86,6 +86,10 @@ A callable bundle is one skill directory containing:
 - `references/capability-source.md` mapping tools back to source routes, handlers,
   business methods, and contract fields
 
+## Mode: task-workflow
+
+Use when the goal maps to a **predefined** workflow (count-then-list, single read-only query) rather than an ad-hoc API chain. Provide `--workflow-hints <hints.json>` and `--need "<goal>"`. v1 supports `single-query` and `count-list-query` only. See `docs/skill-reference.md` for the hints schema and the generated layout.
+
 ## Output language
 
 repo-to-skill decides the prose language (headings, labels, explanations in

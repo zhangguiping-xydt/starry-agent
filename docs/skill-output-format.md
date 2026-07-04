@@ -27,6 +27,23 @@ The skill output is derived from the artifact chain produced by local scanning:
 - verification report
 - confidence report
 
+## task-workflow output
+
+A task-workflow skill is a single skill directory. Top-level files:
+
+- `SKILL.md` — how to configure and run.
+- `manifest.yaml` — `kind: task-workflow`, `service` block (`env_prefix`, `base_url_env`, `token_env`), `workflows` list (each with `name`, `pattern`, `file`), `interfaces` list (one entry per underlying interface).
+- `workflows/<name>.yaml` — pattern, intent, inputs (cli_name -> wire_name), defaults, steps (role -> slug -> route/method).
+- `scripts/run_<name>.py` — dry-run-first runner; prints the planned request unless `--execute` is passed.
+- `scripts/call_<module>.py` and `tools/<module>.tool.yaml` — one per underlying interface, reused from callable-bundle.
+- `references/workflow-source.md` and `references/service-config.md` — provenance and env-var reference.
+
+`<module>` is the interface slug with hyphens replaced by underscores; if two steps would produce the same module filename, the renderer appends a `__<workflow>_<role>` suffix.
+
+Generate with `--mode task-workflow`, `--need "<goal>"`, and `--workflow-hints <hints.json>`. Supported v1 patterns are `single-query` and `count-list-query`.
+
+Service-level env: `<SERVICE>_BASE_URL`, `<SERVICE>_TOKEN`. Optional per-interface overrides: `<SLUG>_ENDPOINT`, `<SLUG>_TOKEN`.
+
 ## Safety metadata
 
 The manifest records local-first safety boundaries. Generated helper scripts are read-only and must preserve no network, no dependency installation, and generated helpers do not spawn shell commands. They are designed for inspection, not mutation.

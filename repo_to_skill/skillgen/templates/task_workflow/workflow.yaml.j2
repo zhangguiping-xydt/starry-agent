@@ -1,0 +1,24 @@
+name: {{ workflow.name }}
+pattern: {{ workflow.pattern }}
+intent: {{ workflow.intent | tojson }}
+
+inputs:
+{% for input in workflow.inputs %}
+  - name: {{ input.name }}
+    type: {{ input.type }}
+    maps_to: {{ input.maps_to }}
+    required: {{ input.required | lower }}
+{% endfor %}
+
+defaults:
+{% for key, value in workflow.defaults.items() %}
+  {{ key }}: {{ value | tojson }}
+{% endfor %}
+
+steps:
+{% for step in workflow.steps %}
+  - role: {{ step.role }}
+    slug: {{ step.slug | tojson }}
+    route: {{ step.interface.route | tojson }}
+    method: {{ step.interface.http_method }}
+{% endfor %}

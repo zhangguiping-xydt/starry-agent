@@ -74,3 +74,18 @@ def test_public_docs_do_not_contain_private_paths_or_tokens() -> None:
 
     for forbidden in FORBIDDEN_TEXT:
         assert forbidden not in combined
+
+
+def test_public_docs_mention_task_workflow_mode() -> None:
+    targets = [
+        REPO_ROOT / "docs" / "skill-reference.md",
+        REPO_ROOT / "docs" / "skill-reference.zh-CN.md",
+        REPO_ROOT / "docs" / "skill-output-format.md",
+    ]
+    for path in targets:
+        assert path.is_file(), f"missing document: {path.name}"
+        text = path.read_text(encoding="utf-8")
+        assert "task-workflow" in text, f"{path.name} must mention task-workflow mode"
+        assert "--workflow-hints" in text, f"{path.name} must mention --workflow-hints"
+        assert "single-query" in text, f"{path.name} must mention single-query pattern"
+        assert "count-list-query" in text, f"{path.name} must mention count-list-query pattern"

@@ -1,0 +1,47 @@
+name: {{ bundle_slug }}
+version: 0.1.0
+kind: task-workflow
+summary: {{ ("Task workflow skill for " ~ need_summary) | tojson }}
+
+service:
+  name: {{ project_name }}
+  env_prefix: {{ service.env_prefix }}
+  base_url_env: {{ service.base_url_env }}
+  token_env: {{ service.token_env }}
+
+runtime:
+  requires_live_system: true
+  transport: http
+  workflows_count: {{ workflows | length }}
+  interfaces_count: {{ interfaces | length }}
+
+auth:
+  required: true
+  type: bearer
+  token_env: {{ service.token_env }}
+
+safety:
+  dry_run_default: true
+  network: requires-explicit-endpoint
+  dependency_install: disabled
+  target_repository_writes: disabled
+
+workflows:
+{% for workflow in workflows %}
+  - name: {{ workflow.name | tojson }}
+    pattern: {{ workflow.pattern }}
+    file: workflows/{{ workflow.name }}.yaml
+{% endfor %}
+
+interfaces:
+{% for interface in interfaces %}
+  - slug: {{ interface.slug | tojson }}
+    tool: {{ interface.module | tojson }}
+    route: {{ interface.route | tojson }}
+    method: {{ interface.http_method }}
+    endpoint_env: {{ interface.endpoint_env }}
+    token_env: {{ interface.token_env }}
+    side_effects: {{ interface.side_effects }}
+{% endfor %}
+
+generated_by: {{ generated_by }}

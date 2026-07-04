@@ -120,12 +120,14 @@ repo-to-skill doctor                                                    # 本地
 ├── manifest.yaml                       # kind: task-workflow，service、workflows、interfaces
 ├── workflows/<name>.yaml               # 每个 workflow 一个文件（pattern、steps、inputs、defaults）
 ├── scripts/run_<name>.py               # 每个 workflow 一个默认 dry-run 的 runner
-├── scripts/call_<slug>.py              # 每个底层接口一个 caller（复用 callable）
-├── tools/<slug>.tool.yaml              # 每个接口一个 tool 契约（复用 callable）
+├── scripts/call_<module>.py            # 每个底层接口一个 caller（复用 callable）
+├── tools/<module>.tool.yaml            # 每个接口一个 tool 契约（复用 callable）
 └── references/
     ├── workflow-source.md              # workflow -> step -> interface 映射
     └── service-config.md               # 服务级环境变量 + 每接口覆盖
 ```
+
+`<module>`（slug 将连字符替换为下划线；若两个 step 产生相同文件名，渲染器追加 `__<workflow>_<role>` 后缀）。
 
 每个服务只需配置一次 `<SERVICE>_BASE_URL` 和 `<SERVICE>_TOKEN`。可选地用 `<SLUG>_ENDPOINT` / `<SLUG>_TOKEN` 覆盖单个接口。每个 runner 都会先打印计划请求；除非传入 `--execute`，否则不会发送任何请求。
 

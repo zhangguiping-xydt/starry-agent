@@ -120,12 +120,14 @@ A task-workflow skill is generated when the goal maps to a **predefined** workfl
 ├── manifest.yaml                      # kind: task-workflow, service, workflows, interfaces
 ├── workflows/<name>.yaml              # one file per workflow (pattern, steps, inputs, defaults)
 ├── scripts/run_<name>.py              # dry-run-first runner per workflow
-├── scripts/call_<slug>.py             # one caller per underlying interface (reused from callable)
-├── tools/<slug>.tool.yaml             # one tool contract per interface (reused from callable)
+├── scripts/call_<module>.py           # one caller per underlying interface (reused from callable)
+├── tools/<module>.tool.yaml           # one tool contract per interface (reused from callable)
 └── references/
     ├── workflow-source.md             # workflow -> step -> interface mapping
     └── service-config.md              # service-level env vars + per-interface overrides
 ```
+
+`<module>` is the interface slug with hyphens replaced by underscores; if two steps would produce the same module filename, the renderer appends a `__<workflow>_<role>` suffix.
 
 Configure once per service with `<SERVICE>_BASE_URL` and `<SERVICE>_TOKEN`. Per-interface overrides via `<SLUG>_ENDPOINT` / `<SLUG>_TOKEN` are optional. Every runner prints the planned request and sends nothing unless `--execute` is passed.
 

@@ -35,8 +35,10 @@ A task-workflow skill is a single skill directory. Top-level files:
 - `manifest.yaml` — `kind: task-workflow`, `service` block (`env_prefix`, `base_url_env`, `token_env`), `workflows` list (each with `name`, `pattern`, `file`), `interfaces` list (one entry per underlying interface).
 - `workflows/<name>.yaml` — pattern, intent, inputs (cli_name -> wire_name), defaults, steps (role -> slug -> route/method).
 - `scripts/run_<name>.py` — dry-run-first runner; prints the planned request unless `--execute` is passed.
-- `scripts/call_<slug>.py` and `tools/<slug>.tool.yaml` — one per underlying interface, reused from callable-bundle.
+- `scripts/call_<module>.py` and `tools/<module>.tool.yaml` — one per underlying interface, reused from callable-bundle.
 - `references/workflow-source.md` and `references/service-config.md` — provenance and env-var reference.
+
+`<module>` is the interface slug with hyphens replaced by underscores; if two steps would produce the same module filename, the renderer appends a `__<workflow>_<role>` suffix.
 
 Generate with `--mode task-workflow`, `--need "<goal>"`, and `--workflow-hints <hints.json>`. Supported v1 patterns are `single-query` and `count-list-query`.
 

@@ -66,6 +66,21 @@ def _prepare(tmp_path: Path) -> tuple[Path, Path]:
     return repo, analysis
 
 
+def _prepare_single(tmp_path: Path) -> tuple[Path, Path]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    analysis = tmp_path / "analysis"
+    analysis.mkdir()
+    interfaces = [_interface("example-query", "/example/query")]
+    (analysis / "scan.json").write_text(json.dumps({"root": str(repo), "files": []}), encoding="utf-8")
+    (analysis / "profile.json").write_text(json.dumps({"name": "zte-hrm-job-service"}), encoding="utf-8")
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps({"project": "zte-hrm-job-service", "interfaces": interfaces, "notes": []}),
+        encoding="utf-8",
+    )
+    return repo, analysis
+
+
 def _hints() -> WorkflowHints:
     return WorkflowHints(
         service_env_prefix="EXAMPLE_SERVICE",
@@ -215,6 +230,62 @@ def test_render_task_workflow_disambiguates_colliding_step_modules(tmp_path: Pat
     )
     assert hyphen_workflow["steps"][0]["route"] == "/routes/from-hyphen"
     assert underscore_workflow["steps"][0]["route"] == "/routes/from-underscore"
+
+
+def test_render_task_workflow_single_query_runner_dry_run(tmp_path: Path) -> None:
+    repo, analysis = _prepare_single(tmp_path)
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="find_record",
+                pattern="single-query",
+                steps=(WorkflowHintStep(role="lookup", slug="example-query"),),
+                inputs={"keyword": "nameConcat"},
+                defaults={"pageSize": 20},
+            ),
+        ),
+    )
+    plan = plan_task_workflow(
+        repo, analysis, hints=hints, need_summary="按关键词查一条", language="zh-CN"
+    )
+
+    skill = render_task_workflow(plan, tmp_path / "skill")
+
+    runner_path = skill / "scripts" / "run_find_record.py"
+    assert runner_path.is_file()
+
+    spec = importlib.util.spec_from_file_location("task_workflow_runner_single", runner_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def _no_call(*_args, **_kwargs):
+        raise AssertionError("runner must not send a request in dry-run mode")
+
+    monkeypatch_like = _NoCallPatcher()
+    monkeypatch_like.patch(module, "_send_request", _no_call)
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = module.main(["--keyword", "Alice"])
+
+    assert rc == 0
+    out = buffer.getvalue()
+    assert "[dry-run]" in out
+    assert "find_record" in out
+    assert "secret" not in out
+
+
+class _NoCallPatcher:
+    """Tiny shim to patch a module attribute without pulling pytest into the runner."""
+
+    def __init__(self) -> None:
+        self._original: dict[str, object] = {}
+
+    def patch(self, module: object, name: str, value: object) -> None:
+        self._original[name] = getattr(module, name)
+        setattr(module, name, value)
 
 
 def test_render_task_workflow_validates(tmp_path: Path) -> None:

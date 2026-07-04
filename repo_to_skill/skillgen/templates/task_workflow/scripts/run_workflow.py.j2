@@ -122,6 +122,62 @@ def main(argv: list[str]) -> int:
 
     print("[list] rows: " + json.dumps(list_doc, ensure_ascii=False, indent=2))
     return 0
+{% elif workflow.pattern == "single-query" %}
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="Run the {{ workflow.name }} workflow.")
+{% for input in workflow.inputs %}
+    parser.add_argument("--{{ input.name }}", help="{{ input.name }} -> {{ input.maps_to }}")
+{% endfor %}
+    parser.add_argument("--execute", action="store_true", help="Send live HTTP calls.")
+    parser.add_argument("--dry-run", action="store_true", help="Force preview (default).")
+    parser.add_argument("--timeout", type=float, default=30.0)
+    args = parser.parse_args(argv)
+
+    payload: dict = dict(DEFAULTS)
+{% for input in workflow.inputs %}
+    value = getattr(args, "{{ input.name | replace('-', '_') }}", None)
+    if value is not None:
+        payload["{{ input.maps_to }}"] = value
+{% endfor %}
+
+    step_route = STEP_{{ workflow.steps[0].role | upper }}_ROUTE
+    step_method = STEP_{{ workflow.steps[0].role | upper }}_METHOD
+    step_endpoint_env = STEP_{{ workflow.steps[0].role | upper }}_ENDPOINT_ENV
+    step_token_env = STEP_{{ workflow.steps[0].role | upper }}_TOKEN_ENV
+
+    endpoint = _endpoint(step_route, step_endpoint_env)
+    token = _token(step_token_env)
+
+    dry_run = args.dry_run or not args.execute or not endpoint
+    if dry_run:
+        print("[dry-run] {{ workflow.name }} not sending any request.")
+        print("  endpoint: " + (endpoint or "<" + BASE_URL_ENV + ">"))
+        print("  auth:     " + ("bearer <redacted>" if token else "<" + TOKEN_ENV + " not set>"))
+        print("  payload:  " + json.dumps(payload, ensure_ascii=False))
+        return 0
+
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        endpoint, data=body, method=step_method, headers=headers
+    )
+    try:
+        raw = _send_request(request, args.timeout)
+    except urllib.error.URLError as error:
+        print("[error] single-query step failed: " + str(error))
+        return 1
+
+    try:
+        doc = json.loads(raw)
+    except json.JSONDecodeError:
+        print(raw)
+        return 0
+
+    print("[single-query] " + json.dumps(doc, ensure_ascii=False, indent=2))
+    return 0
 {% else %}
 def main(argv: list[str]) -> int:
     raise NotImplementedError(

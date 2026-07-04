@@ -110,6 +110,30 @@ def test_load_workflow_hints_rejects_unsafe_input_maps_to(tmp_path: Path) -> Non
     assert 'q"q' in str(exc.value)
 
 
+def test_load_workflow_hints_rejects_lookup_detail_pattern(tmp_path: Path) -> None:
+    path = _write_hints(
+        tmp_path,
+        {
+            "service_env_prefix": "EXAMPLE_SERVICE",
+            "workflows": [
+                {
+                    "name": "lookup_record",
+                    "pattern": "lookup-detail",
+                    "steps": {"lookup": "example-query"},
+                    "inputs": {"keyword": "nameConcat"},
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(ValueError) as exc:
+        load_workflow_hints(path)
+
+    message = str(exc.value)
+    assert "lookup-detail" in message
+    assert "not supported" in message.lower()
+
+
 def test_service_env_prefix_converts_project_name() -> None:
     assert derive_service_env_prefix("zte-hrm-job-service") == "ZTE_HRM_JOB_SERVICE"
     assert derive_service_env_prefix("corehr-businessprocess") == "COREHR_BUSINESSPROCESS"
@@ -173,6 +197,49 @@ def _analysis(tmp_path: Path, interfaces: list[dict]) -> tuple[Path, Path]:
     return repo, analysis
 
 
+def _prepare_single_query(tmp_path: Path) -> tuple[Path, Path]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    analysis = tmp_path / "analysis"
+    analysis.mkdir()
+    interface = {
+        "slug": "example-query",
+        "stack": "java",
+        "framework": "spring",
+        "http_method": "POST",
+        "route": "/example/query",
+        "handler_symbol": "Controller.example_query",
+        "handler_path": "src/main/java/example/Controller.java",
+        "business_method": "Service.example_query",
+        "endpoint_env": "EXAMPLE_QUERY_ENDPOINT",
+        "token_env": "EXAMPLE_QUERY_TOKEN",
+        "side_effects": "read",
+        "request": {
+            "model_name": "ExampleQueryRequest",
+            "fields": [{"name": "nameConcat", "type": "string", "required": False}],
+            "unresolved": False,
+            "notes": [],
+        },
+        "response": {
+            "model_name": "ExampleQueryResponse",
+            "fields": [],
+            "unresolved": False,
+            "notes": [],
+        },
+    }
+    (analysis / "scan.json").write_text(
+        json.dumps({"root": str(repo), "files": []}), encoding="utf-8"
+    )
+    (analysis / "profile.json").write_text(
+        json.dumps({"name": "example-service"}), encoding="utf-8"
+    )
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps({"project": "example-service", "interfaces": [interface], "notes": []}),
+        encoding="utf-8",
+    )
+    return repo, analysis
+
+
 def test_plan_task_workflow_count_list_query(tmp_path: Path) -> None:
     interfaces = [
         _interface("example-query-count", "/example/querycount", side_effects="read"),
@@ -212,6 +279,59 @@ def test_plan_task_workflow_count_list_query(tmp_path: Path) -> None:
     assert [step.slug for step in workflow.steps] == ["example-query-count", "example-query-list"]
     assert workflow.inputs[0].name == "keyword"
     assert workflow.inputs[0].maps_to == "nameConcat"
+
+
+def test_plan_task_workflow_supports_single_query(tmp_path: Path) -> None:
+    repo, analysis = _prepare_single_query(tmp_path)
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="find_record",
+                pattern="single-query",
+                steps=(WorkflowHintStep(role="lookup", slug="example-query"),),
+                inputs={"keyword": "nameConcat"},
+                defaults={"pageSize": 20},
+            ),
+        ),
+    )
+
+    plan = plan_task_workflow(
+        repo, analysis, hints=hints, need_summary="find one record", language="en"
+    )
+
+    assert len(plan.workflows) == 1
+    workflow = plan.workflows[0]
+    assert workflow.pattern == "single-query"
+    assert [step.role for step in workflow.steps] == ["lookup"]
+    assert workflow.steps[0].slug == "example-query"
+
+
+def test_plan_task_workflow_single_query_rejects_two_steps(tmp_path: Path) -> None:
+    repo, analysis = _prepare_single_query(tmp_path)
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="find_record",
+                pattern="single-query",
+                steps=(
+                    WorkflowHintStep(role="lookup", slug="example-query"),
+                    WorkflowHintStep(role="detail", slug="example-query"),
+                ),
+                inputs={"keyword": "nameConcat"},
+                defaults={},
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError) as exc:
+        plan_task_workflow(
+            repo, analysis, hints=hints, need_summary="x", language="en"
+        )
+
+    assert "find_record" in str(exc.value)
+    assert "single-query" in str(exc.value)
 
 
 def test_task_workflow_plan_has_project_name_property(tmp_path: Path) -> None:

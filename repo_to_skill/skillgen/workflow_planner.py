@@ -139,6 +139,10 @@ def _build_workflow(hint: WorkflowHint, interfaces_by_slug: dict[str, dict[str, 
         raise ValueError(
             f"workflow '{hint.name}': count-list-query requires steps in order count, list"
         )
+    if hint.pattern == "single-query" and len(hint.steps) != 1:
+        raise ValueError(
+            f"workflow '{hint.name}': single-query requires exactly one step"
+        )
 
     resolved_steps: list[WorkflowStep] = []
     for hint_step in hint.steps:

@@ -63,8 +63,9 @@ def load_workflow_hints(path: Path) -> WorkflowHints:
         _require(name, f"{workflow_path} name must be set")
         workflow_path = f"workflows[{index}] ({name})"
         _require(
-            pattern in {"single-query", "count-list-query", "lookup-detail"},
-            f"{workflow_path} unsupported workflow pattern: {pattern}",
+            pattern in {"single-query", "count-list-query"},
+            f"{workflow_path} unsupported workflow pattern: {pattern} "
+            "(lookup-detail is not supported in v1)",
         )
 
         raw_steps = raw_workflow.get("steps", {})

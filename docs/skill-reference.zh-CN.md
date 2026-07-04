@@ -37,12 +37,14 @@ repo-to-skill analyze <repo> --output <workdir>/analysis
 repo-to-skill generate <repo> \
   --analysis <workdir>/analysis \
   --output <workdir>/skill \
-  --mode callable-bundle | callable-composite | repo-map \
+  --mode callable-bundle | callable-composite | task-workflow | repo-map \
   --goal "<用户目标>"                 # callable-composite 必填
-  --need "<用户目标>"                 # callable-bundle fallback 用
+  --need "<用户目标>"                 # callable-bundle fallback 用；task-workflow 必填
+  --workflow-hints <hints.json>       # task-workflow 必填
   --selected-slugs slug-a,slug-b      # 可选，agent 覆盖
   --selection-json <path>             # 可选，完整选型文件
   --max-interfaces 12                 # bundle 默认；composite 默认 5
+  --language auto | zh-CN | en
 repo-to-skill validate <workdir>/skill/<slug>
 repo-to-skill compose <repo> --output <workdir> --mode <m> --goal <g>   # 一条命令跑完 analyze + generate + validate
 repo-to-skill eval --case <case-name>                                   # 确定性回归
@@ -56,6 +58,7 @@ repo-to-skill doctor                                                    # 本地
 | `repo-map` | 导览包（无 live 调用） | 探索、上手、"这个仓库是干啥的" |
 | `callable-bundle` | 一组并列的可调用 tool | "给我一个干 X 的工具箱"——每个 tool 是一个独立 API |
 | `callable-composite` | 线性 A→B→C orchestrator + bundle | "算一个要按顺序调多个 API 才能得到的最终答案" |
+| `task-workflow` | 围绕服务预定义工作流生成一个 skill | "针对这个服务跑已知只读 count-then-list 流程，不要临时拼 API 链" |
 
 ## 产物结构
 
@@ -106,6 +109,27 @@ repo-to-skill doctor                                                    # 本地
     ├── composition.md                  # 有序步骤 + 必填字段映射
     └── capability-source.md            # 每个 API 的源码出处
 ```
+
+### task-workflow
+
+当目标映射到一个**预定义**工作流（提前在 hints JSON 文件里声明）而不是临时拼出的 API 链时，生成 `task-workflow` skill。渲染器会产出：
+
+```text
+<skill>/
+├── SKILL.md                            # 怎么配置和运行工作流
+├── manifest.yaml                       # kind: task-workflow，service、workflows、interfaces
+├── workflows/<name>.yaml               # 每个 workflow 一个文件（pattern、steps、inputs、defaults）
+├── scripts/run_<name>.py               # 每个 workflow 一个默认 dry-run 的 runner
+├── scripts/call_<slug>.py              # 每个底层接口一个 caller（复用 callable）
+├── tools/<slug>.tool.yaml              # 每个接口一个 tool 契约（复用 callable）
+└── references/
+    ├── workflow-source.md              # workflow -> step -> interface 映射
+    └── service-config.md               # 服务级环境变量 + 每接口覆盖
+```
+
+每个服务只需配置一次 `<SERVICE>_BASE_URL` 和 `<SERVICE>_TOKEN`。可选地用 `<SLUG>_ENDPOINT` / `<SLUG>_TOKEN` 覆盖单个接口。每个 runner 都会先打印计划请求；除非传入 `--execute`，否则不会发送任何请求。
+
+v1 支持的 pattern：`single-query`（一个只读步骤）和 `count-list-query`（先 count 后 list，两个步骤都只读）。`lookup-detail` 在 v1 **不支持**。
 
 ## 数据模型
 

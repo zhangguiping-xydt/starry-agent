@@ -37,12 +37,14 @@ repo-to-skill analyze <repo> --output <workdir>/analysis
 repo-to-skill generate <repo> \
   --analysis <workdir>/analysis \
   --output <workdir>/skill \
-  --mode callable-bundle | callable-composite | repo-map \
+  --mode callable-bundle | callable-composite | task-workflow | repo-map \
   --goal "<user goal>"            # required for callable-composite
-  --need "<user goal>"            # used by callable-bundle fallback
+  --need "<user goal>"            # used by callable-bundle fallback; required for task-workflow
+  --workflow-hints <hints.json>   # required for task-workflow
   --selected-slugs slug-a,slug-b  # optional agent override
   --selection-json <path>         # optional full selection file
   --max-interfaces 12             # bundle default; composite default 5
+  --language auto | zh-CN | en
 repo-to-skill validate <workdir>/skill/<slug>
 repo-to-skill compose <repo> --output <workdir> --mode <m> --goal <g>   # analyze + generate + validate in one go
 repo-to-skill eval --case <case-name>                                    # deterministic regression
@@ -56,6 +58,7 @@ repo-to-skill doctor                                                     # local
 | `repo-map` | Orientation pack (no live calls) | Exploration, onboarding, "what does this repo do?" |
 | `callable-bundle` | Bundle of independent callable tools | "Give me a toolkit for X" — each tool is a standalone API |
 | `callable-composite` | Linear A→B→C orchestrator + bundle | "Compute a final answer that requires calling several APIs in order" |
+| `task-workflow` | One skill per predefined workflow over a service | "Run a known read-only count-then-list flow against this service, do not improvise API chains" |
 
 ## Generated skill shape
 
@@ -106,6 +109,27 @@ repo-to-skill doctor                                                     # local
     ├── composition.md                 # ordered steps + required field mappings
     └── capability-source.md           # per-API source provenance
 ```
+
+### task-workflow
+
+A task-workflow skill is generated when the goal maps to a **predefined** workflow (declared up-front in a hints JSON file) rather than an ad-hoc API chain. The renderer emits:
+
+```text
+<skill>/
+├── SKILL.md                           # how to run the workflow
+├── manifest.yaml                      # kind: task-workflow, service, workflows, interfaces
+├── workflows/<name>.yaml              # one file per workflow (pattern, steps, inputs, defaults)
+├── scripts/run_<name>.py              # dry-run-first runner per workflow
+├── scripts/call_<slug>.py             # one caller per underlying interface (reused from callable)
+├── tools/<slug>.tool.yaml             # one tool contract per interface (reused from callable)
+└── references/
+    ├── workflow-source.md             # workflow -> step -> interface mapping
+    └── service-config.md              # service-level env vars + per-interface overrides
+```
+
+Configure once per service with `<SERVICE>_BASE_URL` and `<SERVICE>_TOKEN`. Per-interface overrides via `<SLUG>_ENDPOINT` / `<SLUG>_TOKEN` are optional. Every runner prints the planned request and sends nothing unless `--execute` is passed.
+
+Supported v1 patterns: `single-query` (one read-only step) and `count-list-query` (count then list, both read-only). `lookup-detail` is **not supported** in v1.
 
 ## Data model
 

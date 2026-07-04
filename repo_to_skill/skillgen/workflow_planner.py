@@ -133,6 +133,7 @@ def _interface_index(callable_capabilities: dict[str, Any]) -> dict[str, dict[st
 
 
 def _build_workflow(hint: WorkflowHint, interfaces_by_slug: dict[str, dict[str, Any]]) -> WorkflowPlan:
+    """Build a v1 task-workflow plan from read-safe POST-with-JSON-body steps."""
     if not hint.steps:
         raise ValueError(f"workflow '{hint.name}' must declare at least one step")
     if hint.pattern == "count-list-query" and [step.role for step in hint.steps] != ["count", "list"]:
@@ -152,6 +153,12 @@ def _build_workflow(hint: WorkflowHint, interfaces_by_slug: dict[str, dict[str, 
         if not _is_read_safe(interface):
             raise ValueError(
                 f"workflow step references write interface: {hint_step.slug}"
+            )
+        method = str(interface.get("http_method") or "").lower()
+        if method != "post":
+            raise ValueError(
+                f"workflow step '{hint_step.slug}' must use POST "
+                f"(v1 supports POST-with-JSON-body only), got {method}"
             )
         module = hint_step.slug.replace("-", "_")
         resolved_steps.append(

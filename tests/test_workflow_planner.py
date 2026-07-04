@@ -307,6 +307,60 @@ def test_plan_task_workflow_supports_single_query(tmp_path: Path) -> None:
     assert workflow.steps[0].slug == "example-query"
 
 
+def test_plan_task_workflow_single_query_rejects_get_step(tmp_path: Path) -> None:
+    interface = _interface("example-query", "/example/query", side_effects="read")
+    interface["http_method"] = "GET"
+    repo, analysis = _analysis(tmp_path, [interface])
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="find_record",
+                pattern="single-query",
+                steps=(WorkflowHintStep(role="lookup", slug="example-query"),),
+                inputs={"keyword": "nameConcat"},
+                defaults={},
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError) as exc:
+        plan_task_workflow(repo, analysis, hints=hints, need_summary="x", language="en")
+
+    message = str(exc.value)
+    assert "example-query" in message
+    assert "POST" in message
+
+
+def test_plan_task_workflow_count_list_query_rejects_get_list_step(tmp_path: Path) -> None:
+    count_interface = _interface("example-query-count", "/example/querycount", side_effects="read")
+    list_interface = _interface("example-query-list", "/example/querylist", side_effects="read")
+    list_interface["http_method"] = "GET"
+    repo, analysis = _analysis(tmp_path, [count_interface, list_interface])
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="query_records",
+                pattern="count-list-query",
+                steps=(
+                    WorkflowHintStep("count", "example-query-count"),
+                    WorkflowHintStep("list", "example-query-list"),
+                ),
+                inputs={},
+                defaults={},
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError) as exc:
+        plan_task_workflow(repo, analysis, hints=hints, need_summary="x", language="en")
+
+    message = str(exc.value)
+    assert "example-query-list" in message
+    assert "POST" in message
+
+
 def test_plan_task_workflow_single_query_rejects_two_steps(tmp_path: Path) -> None:
     repo, analysis = _prepare_single_query(tmp_path)
     hints = WorkflowHints(

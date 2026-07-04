@@ -177,6 +177,131 @@ def test_render_task_workflow_runner_dry_run_does_not_send(monkeypatch, tmp_path
         module.main(["--keyword", "Alice", "--execute"])
 
 
+def test_render_task_workflow_execute_without_token_falls_back_to_dry_run(
+    monkeypatch, tmp_path: Path
+) -> None:
+    repo, analysis = _prepare(tmp_path)
+    plan = plan_task_workflow(
+        repo, analysis, hints=_hints(), need_summary="按关键词查询记录", language="zh-CN"
+    )
+    skill = render_task_workflow(plan, tmp_path / "skill")
+
+    runner_path = skill / "scripts" / "run_query_records.py"
+    spec = importlib.util.spec_from_file_location("task_workflow_runner_no_token", runner_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    calls: list[object] = []
+
+    def _no_call(*args, **_kwargs):
+        calls.append(args)
+        raise AssertionError("runner must not send a request without a token")
+
+    monkeypatch.setattr(module, "_send_request", _no_call)
+    monkeypatch.setenv("EXAMPLE_SERVICE_BASE_URL", "https://example.invalid")
+    monkeypatch.delenv("EXAMPLE_SERVICE_TOKEN", raising=False)
+    monkeypatch.delenv("EXAMPLE_QUERY_COUNT_TOKEN", raising=False)
+    monkeypatch.delenv("EXAMPLE_QUERY_LIST_TOKEN", raising=False)
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = module.main(["--execute", "--keyword", "Alice"])
+
+    assert rc == 0
+    out = buffer.getvalue()
+    assert "[dry-run]" in out
+    assert "EXAMPLE_QUERY_COUNT_TOKEN" in out
+    assert "EXAMPLE_QUERY_LIST_TOKEN" in out
+    assert calls == []
+
+
+def test_render_task_workflow_count_list_query_uses_each_step_token(
+    monkeypatch, tmp_path: Path
+) -> None:
+    repo, analysis = _prepare(tmp_path)
+    plan = plan_task_workflow(
+        repo, analysis, hints=_hints(), need_summary="按关键词查询记录", language="zh-CN"
+    )
+    skill = render_task_workflow(plan, tmp_path / "skill")
+
+    runner_path = skill / "scripts" / "run_query_records.py"
+    spec = importlib.util.spec_from_file_location("task_workflow_runner_step_tokens", runner_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    authorizations: list[str | None] = []
+
+    def _capture(request, _timeout):
+        authorizations.append(request.get_header("Authorization"))
+        if len(authorizations) == 1:
+            return json.dumps({"bo": 1})
+        return json.dumps({"rows": []})
+
+    monkeypatch.setattr(module, "_send_request", _capture)
+    monkeypatch.setenv("EXAMPLE_SERVICE_BASE_URL", "https://example.invalid")
+    monkeypatch.delenv("EXAMPLE_SERVICE_TOKEN", raising=False)
+    monkeypatch.setenv("EXAMPLE_QUERY_COUNT_TOKEN", "count-secret")
+    monkeypatch.setenv("EXAMPLE_QUERY_LIST_TOKEN", "list-secret")
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = module.main(["--execute", "--keyword", "Alice"])
+
+    assert rc == 0
+    assert authorizations == ["Bearer count-secret", "Bearer list-secret"]
+
+
+def test_render_task_workflow_single_query_execute_without_token_falls_back_to_dry_run(
+    monkeypatch, tmp_path: Path
+) -> None:
+    repo, analysis = _prepare_single(tmp_path)
+    hints = WorkflowHints(
+        service_env_prefix="EXAMPLE_SERVICE",
+        workflows=(
+            WorkflowHint(
+                name="find_record",
+                pattern="single-query",
+                steps=(WorkflowHintStep(role="lookup", slug="example-query"),),
+                inputs={"keyword": "nameConcat"},
+                defaults={"pageSize": 20},
+            ),
+        ),
+    )
+    plan = plan_task_workflow(
+        repo, analysis, hints=hints, need_summary="按关键词查一条", language="zh-CN"
+    )
+    skill = render_task_workflow(plan, tmp_path / "skill")
+
+    runner_path = skill / "scripts" / "run_find_record.py"
+    spec = importlib.util.spec_from_file_location("task_workflow_runner_single_no_token", runner_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    calls: list[object] = []
+
+    def _no_call(*args, **_kwargs):
+        calls.append(args)
+        raise AssertionError("runner must not send a request without a token")
+
+    monkeypatch.setattr(module, "_send_request", _no_call)
+    monkeypatch.setenv("EXAMPLE_SERVICE_BASE_URL", "https://example.invalid")
+    monkeypatch.delenv("EXAMPLE_SERVICE_TOKEN", raising=False)
+    monkeypatch.delenv("EXAMPLE_QUERY_TOKEN", raising=False)
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = module.main(["--execute", "--keyword", "Alice"])
+
+    assert rc == 0
+    out = buffer.getvalue()
+    assert "[dry-run]" in out
+    assert "EXAMPLE_QUERY_TOKEN" in out
+    assert calls == []
+
+
 def test_render_task_workflow_disambiguates_colliding_step_modules(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()

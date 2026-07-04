@@ -67,24 +67,38 @@ def main(argv: list[str]) -> int:
 
     count_endpoint = _endpoint(STEP_COUNT_ROUTE, STEP_COUNT_ENDPOINT_ENV)
     list_endpoint = _endpoint(STEP_LIST_ROUTE, STEP_LIST_ENDPOINT_ENV)
-    token = _token(STEP_COUNT_TOKEN_ENV)
+    count_token = _token(STEP_COUNT_TOKEN_ENV)
+    list_token = _token(STEP_LIST_TOKEN_ENV)
 
-    dry_run = args.dry_run or not args.execute or not count_endpoint or not list_endpoint
+    dry_run = (
+        args.dry_run
+        or not args.execute
+        or not count_endpoint
+        or not count_token
+        or not list_endpoint
+        or not list_token
+    )
     if dry_run:
         print("[dry-run] {{ workflow.name }} not sending any request.")
         print("  count endpoint: " + (count_endpoint or "<" + BASE_URL_ENV + ">"))
+        print("  count auth:     " + ("bearer <redacted>" if count_token else "<" + STEP_COUNT_TOKEN_ENV + " or " + TOKEN_ENV + " not set>"))
         print("  list endpoint:  " + (list_endpoint or "<" + BASE_URL_ENV + ">"))
-        print("  auth:           " + ("bearer <redacted>" if token else "<" + TOKEN_ENV + " not set>"))
+        print("  list auth:      " + ("bearer <redacted>" if list_token else "<" + STEP_LIST_TOKEN_ENV + " or " + TOKEN_ENV + " not set>"))
         print("  payload:        " + json.dumps(payload, ensure_ascii=False))
         return 0
 
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = "Bearer " + token
+    count_headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + count_token,
+    }
+    list_headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + list_token,
+    }
 
     count_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     count_request = urllib.request.Request(
-        count_endpoint, data=count_body, method=STEP_COUNT_METHOD, headers=headers
+        count_endpoint, data=count_body, method=STEP_COUNT_METHOD, headers=count_headers
     )
     try:
         raw_count = _send_request(count_request, args.timeout)
@@ -106,7 +120,7 @@ def main(argv: list[str]) -> int:
 
     list_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     list_request = urllib.request.Request(
-        list_endpoint, data=list_body, method=STEP_LIST_METHOD, headers=headers
+        list_endpoint, data=list_body, method=STEP_LIST_METHOD, headers=list_headers
     )
     try:
         raw_list = _send_request(list_request, args.timeout)
@@ -148,17 +162,18 @@ def main(argv: list[str]) -> int:
     endpoint = _endpoint(step_route, step_endpoint_env)
     token = _token(step_token_env)
 
-    dry_run = args.dry_run or not args.execute or not endpoint
+    dry_run = args.dry_run or not args.execute or not endpoint or not token
     if dry_run:
         print("[dry-run] {{ workflow.name }} not sending any request.")
         print("  endpoint: " + (endpoint or "<" + BASE_URL_ENV + ">"))
-        print("  auth:     " + ("bearer <redacted>" if token else "<" + TOKEN_ENV + " not set>"))
+        print("  auth:     " + ("bearer <redacted>" if token else "<" + step_token_env + " or " + TOKEN_ENV + " not set>"))
         print("  payload:  " + json.dumps(payload, ensure_ascii=False))
         return 0
 
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = "Bearer " + token
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token,
+    }
 
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(

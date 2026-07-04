@@ -872,7 +872,9 @@ def _task_workflow_skill_description(
 
 def _task_workflow_context(plan: TaskWorkflowPlan) -> dict[str, Any]:
     project_name = _inline_text(plan.project_name, "local-repository")
-    bundle_slug = _safe_name(plan.need_summary or plan.project_name)
+    bundle_slug = (
+        plan.workflows[0].name if plan.workflows else _safe_name(plan.project_name)
+    )
 
     interfaces: list[dict[str, Any]] = []
     used_filenames: set[str] = set()

@@ -1,7 +1,7 @@
 name: {{ bundle_slug }}
 version: 0.1.0
 kind: task-workflow
-summary: {{ ("Task workflow skill for " ~ need_summary) | tojson }}
+summary: {{ yaml_quote("Task workflow skill for " ~ need_summary) }}
 
 service:
   name: {{ project_name }}

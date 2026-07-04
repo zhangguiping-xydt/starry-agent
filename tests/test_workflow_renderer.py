@@ -423,3 +423,55 @@ def test_render_task_workflow_validates(tmp_path: Path) -> None:
     report = validate_skill(skill)
 
     assert report.status == "PASS", report.findings
+
+
+def test_render_task_workflow_bundle_slug_does_not_collapse_on_cjk_need(
+    tmp_path: Path,
+) -> None:
+    """A CJK-only need_summary must not collapse the bundle slug to the fallback.
+
+    The slug should be derived from the workflow name (already a safe slug) or
+    project_name, never from the user-facing need_summary which may be CJK only.
+    """
+    repo, analysis = _prepare(tmp_path)
+    plan = plan_task_workflow(
+        repo, analysis, hints=_hints(), need_summary="按关键词查询记录", language="zh-CN"
+    )
+
+    skill = render_task_workflow(plan, tmp_path / "skill")
+
+    bundle_slug = skill.name
+    assert bundle_slug != "local-repository", (
+        "CJK need_summary collapsed bundle slug to fallback; multiple CJK-need "
+        "skills would overwrite each other under the same name."
+    )
+    assert bundle_slug == "query_records", (
+        f"expected bundle slug to mirror the workflow name, got {bundle_slug!r}"
+    )
+
+    # SKILL.md frontmatter `name:` should equal the bundle slug, not "local-repository".
+    text = (skill / "SKILL.md").read_text(encoding="utf-8")
+    assert "name: local-repository" not in text, (
+        "SKILL.md frontmatter `name` collapsed to local-repository"
+    )
+
+
+def test_render_task_workflow_manifest_summary_preserves_cjk(tmp_path: Path) -> None:
+    """manifest.yaml summary must keep CJK characters as-is, not escape them."""
+    repo, analysis = _prepare(tmp_path)
+    plan = plan_task_workflow(
+        repo, analysis, hints=_hints(), need_summary="按关键词查询记录", language="zh-CN"
+    )
+
+    skill = render_task_workflow(plan, tmp_path / "skill")
+    raw_manifest = (skill / "manifest.yaml").read_text(encoding="utf-8")
+
+    assert "\\u" not in raw_manifest, (
+        "manifest.yaml escapes non-ASCII as \\uXXXX; CJK should be preserved as-is"
+    )
+    assert "按关键词查询记录" in raw_manifest, (
+        "manifest.yaml summary must contain the original CJK need_summary"
+    )
+
+    parsed = yaml.safe_load(raw_manifest)
+    assert "按" in parsed["summary"], parsed["summary"]

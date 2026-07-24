@@ -9,13 +9,13 @@ from typing import Any
 
 try:
     from common import parse_viewbox, read_yaml, semantic_items, write_json
-    from profiles import enhancement_rank, load_profiles, profile_for
+    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import parse_viewbox, read_yaml, semantic_items, write_json
-    from profiles import enhancement_rank, load_profiles, profile_for
+    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
 
 
 _REQUIRED_TOP_LEVEL_KEYS = (
@@ -24,10 +24,17 @@ _REQUIRED_TOP_LEVEL_KEYS = (
     "type",
     "source_format",
     "visual_style",
+    "layout_plan",
     "canvas",
     "style_tokens",
 )
 _EDGE_KINDS = {"command", "event", "data", "projection", "call"}
+_EDGE_LIKE_SEMANTIC_KINDS = {"edge", "message", "relationship", "transition"}
+_CONTAINER_SEMANTIC_KINDS = {"group", "lane"}
+_DENSITIES = {"sparse", "balanced", "dense"}
+_VIEW_ROLES = {"standalone", "overview", "detail"}
+_REGION_PLACEMENTS = {"top", "bottom", "left", "right", "center", "background", "lanes"}
+_EDGE_ROLES = ("primary", "secondary", "control")
 
 
 def _is_number(value: Any) -> bool:
@@ -218,9 +225,218 @@ def _validate_style_tokens(style_tokens: Any, errors: list[str]) -> None:
     else:
         if not isinstance(typography.get("font_family"), str) or not typography["font_family"]:
             errors.append("style_tokens.typography.font_family must be defined")
-        minimum = typography.get("min_font_size")
-        if not _is_number(minimum) or minimum <= 0:
-            errors.append("style_tokens.typography.min_font_size must be a positive number")
+        sizes: dict[str, float] = {}
+        for role in ("title_size", "node_size", "edge_label_size", "min_font_size"):
+            value = typography.get(role)
+            if not _is_number(value) or value <= 0:
+                errors.append(f"style_tokens.typography.{role} must be a positive number")
+            else:
+                sizes[role] = float(value)
+        if len(sizes) == 4 and not (
+            sizes["title_size"]
+            >= sizes["node_size"]
+            >= sizes["edge_label_size"]
+            >= sizes["min_font_size"]
+        ):
+            errors.append(
+                "style_tokens typography sizes must satisfy "
+                "title_size >= node_size >= edge_label_size >= min_font_size"
+            )
+
+
+def _non_empty_text(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _approved_complexity_exception(value: Any) -> bool:
+    return (
+        isinstance(value, Mapping)
+        and value.get("user_approved") is True
+        and _non_empty_text(value.get("reason"))
+    )
+
+
+def _validate_layout_plan(
+    lock: dict[str, Any],
+    profile: dict[str, Any],
+    layouts_data: dict[str, Any],
+    errors: list[str],
+    warnings: list[str],
+) -> None:
+    plan = lock.get("layout_plan")
+    if not isinstance(plan, Mapping):
+        errors.append("layout_plan must be a mapping")
+        return
+
+    diagram_type = lock.get("type")
+    pattern = plan.get("pattern")
+    layout = layout_for(pattern, layouts_data)
+    allowed_patterns = profile.get("allowed_layout_patterns", [])
+    preferred_patterns = profile.get("preferred_layout_patterns", [])
+    if layout is None:
+        errors.append(f"unknown layout_plan.pattern: {pattern!r}")
+        layout = {}
+    elif pattern not in allowed_patterns:
+        errors.append(
+            f"layout pattern {pattern!r} is not allowed for diagram type {diagram_type!r}"
+        )
+    else:
+        supports = layout.get("supports", [])
+        if diagram_type not in supports:
+            errors.append(
+                f"layout pattern {pattern!r} does not support diagram type {diagram_type!r}"
+            )
+        if pattern not in preferred_patterns and not _non_empty_text(plan.get("reason")):
+            errors.append(
+                f"non-preferred layout pattern {pattern!r} requires layout_plan.reason"
+            )
+
+    direction = plan.get("direction")
+    directions = layout.get("directions", []) if isinstance(layout, Mapping) else []
+    if not isinstance(direction, str) or direction not in directions:
+        errors.append(
+            f"layout_plan.direction {direction!r} is not allowed for pattern {pattern!r}"
+        )
+    if plan.get("density") not in _DENSITIES:
+        errors.append(f"layout_plan.density must be one of {sorted(_DENSITIES)}")
+    if plan.get("view_role") not in _VIEW_ROLES:
+        errors.append(f"layout_plan.view_role must be one of {sorted(_VIEW_ROLES)}")
+
+    items = semantic_items(lock)
+    edge_ids = {
+        item["id"] for item in items if item["kind"] in _EDGE_LIKE_SEMANTIC_KINDS
+    }
+    plannable_ids = {
+        item["id"]
+        for item in items
+        if item["kind"] not in _EDGE_LIKE_SEMANTIC_KINDS | _CONTAINER_SEMANTIC_KINDS
+    }
+
+    primary = plan.get("primary_items")
+    primary_ids: list[str] = []
+    if not isinstance(primary, list) or not primary:
+        errors.append("layout_plan.primary_items must be a non-empty list")
+    else:
+        for item_id in primary:
+            if not isinstance(item_id, str) or not item_id:
+                errors.append("layout_plan.primary_items contains an invalid id")
+            elif item_id not in plannable_ids:
+                errors.append(f"layout_plan.primary_items references unknown item {item_id}")
+            else:
+                primary_ids.append(item_id)
+        duplicates = sorted(
+            item_id for item_id, count in Counter(primary_ids).items() if count > 1
+        )
+        if duplicates:
+            errors.append(f"layout_plan.primary_items contains duplicates: {duplicates}")
+
+    regions = plan.get("regions")
+    region_members: list[str] = []
+    region_ids: set[str] = set()
+    if not isinstance(regions, list):
+        errors.append("layout_plan.regions must be a list")
+        regions = []
+    for index, region in enumerate(regions):
+        if not isinstance(region, Mapping):
+            errors.append(f"layout_plan.regions item at index {index} must be a mapping")
+            continue
+        region_id = region.get("id")
+        if not _non_empty_text(region_id):
+            errors.append(f"layout_plan.regions item at index {index} must have an id")
+        elif region_id in region_ids:
+            errors.append(f"duplicate layout region id: {region_id}")
+        else:
+            region_ids.add(region_id)
+        if region.get("placement") not in _REGION_PLACEMENTS:
+            errors.append(
+                f"layout region {_format_id(region_id)} placement must be one of "
+                f"{sorted(_REGION_PLACEMENTS)}"
+            )
+        members = region.get("members")
+        if not isinstance(members, list) or not members:
+            errors.append(f"layout region {_format_id(region_id)} must have non-empty members")
+            continue
+        for member in members:
+            if not isinstance(member, str) or not member:
+                errors.append(f"layout region {_format_id(region_id)} has an invalid member")
+            elif member not in plannable_ids:
+                errors.append(
+                    f"layout region {_format_id(region_id)} references unknown item {member}"
+                )
+            else:
+                region_members.append(member)
+
+    planned_counts = Counter(primary_ids + region_members)
+    duplicate_planned = sorted(
+        item_id for item_id, count in planned_counts.items() if count > 1
+    )
+    if duplicate_planned:
+        errors.append(f"layout items must appear exactly once: duplicates {duplicate_planned}")
+    unplanned = sorted(plannable_ids - set(planned_counts))
+    if unplanned:
+        errors.append(f"layout_plan leaves semantic items unplanned: {unplanned}")
+
+    edge_roles = plan.get("edge_roles")
+    planned_edges: list[str] = []
+    if not isinstance(edge_roles, Mapping):
+        errors.append("layout_plan.edge_roles must be a mapping")
+    else:
+        extra_roles = sorted(set(edge_roles) - set(_EDGE_ROLES))
+        if extra_roles:
+            errors.append(f"layout_plan.edge_roles has unsupported roles: {extra_roles}")
+        for role in _EDGE_ROLES:
+            if role not in edge_roles:
+                errors.append(f"layout_plan.edge_roles must define {role}")
+                continue
+            values = edge_roles.get(role)
+            if not isinstance(values, list):
+                errors.append(f"layout_plan.edge_roles.{role} must be a list")
+                continue
+            for edge_id in values:
+                if not isinstance(edge_id, str) or not edge_id:
+                    errors.append(f"layout_plan.edge_roles.{role} contains an invalid id")
+                elif edge_id not in edge_ids:
+                    errors.append(
+                        f"layout_plan.edge_roles.{role} references unknown edge {edge_id}"
+                    )
+                else:
+                    planned_edges.append(edge_id)
+    edge_counts = Counter(planned_edges)
+    duplicate_edges = sorted(
+        edge_id for edge_id, count in edge_counts.items() if count > 1
+    )
+    if duplicate_edges:
+        errors.append(f"layout edges must appear exactly once: duplicates {duplicate_edges}")
+    missing_edges = sorted(edge_ids - set(edge_counts))
+    if missing_edges:
+        errors.append(f"layout_plan.edge_roles leaves edges unclassified: {missing_edges}")
+
+    limit_failures: list[str] = []
+    section_limits = layout.get("section_limits", {}) if isinstance(layout, Mapping) else {}
+    if isinstance(section_limits, Mapping):
+        for section, maximum in section_limits.items():
+            values = lock.get(section, [])
+            count = len(values) if isinstance(values, list) else 0
+            if _is_int(maximum) and count > maximum:
+                limit_failures.append(f"{section}={count} exceeds {maximum}")
+    max_total = layout.get("max_total_items") if isinstance(layout, Mapping) else None
+    if _is_int(max_total) and len(items) > max_total:
+        limit_failures.append(f"total_items={len(items)} exceeds {max_total}")
+
+    exception = plan.get("complexity_exception")
+    if limit_failures:
+        message = f"layout pattern {pattern!r} complexity exceeded: " + "; ".join(limit_failures)
+        if _approved_complexity_exception(exception):
+            warnings.append(
+                message
+                + f"; user-approved exception: {str(exception.get('reason')).strip()}"
+            )
+        else:
+            errors.append(message + "; split the diagram or obtain explicit user approval")
+    elif exception is not None and not _approved_complexity_exception(exception):
+        errors.append(
+            "layout_plan.complexity_exception requires user_approved: true and a non-empty reason"
+        )
 
 
 def _validate_type_semantics(
@@ -289,6 +505,7 @@ def validate_lock(
     lock: dict[str, Any],
     *,
     profiles_data: dict[str, Any] | None = None,
+    layouts_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -297,6 +514,7 @@ def validate_lock(
         return {"status": "failed", "errors": ["lock must be a mapping"], "warnings": warnings}
 
     profiles_data = profiles_data or load_profiles()
+    layouts_data = layouts_data or load_layouts()
     for key in _REQUIRED_TOP_LEVEL_KEYS:
         if key not in lock:
             errors.append(f"missing required top-level key: {key}")
@@ -339,6 +557,7 @@ def validate_lock(
     _validate_style_tokens(lock.get("style_tokens"), errors)
     if isinstance(diagram_type, str):
         _validate_type_semantics(lock, diagram_type, errors, warnings)
+    _validate_layout_plan(lock, profile, layouts_data, errors, warnings)
 
     semantic_id_counts = Counter(item["id"] for item in semantic_items(lock))
     duplicate_semantic_ids = sorted(
@@ -354,18 +573,28 @@ def validate_lock_file(
     path: Path,
     *,
     profiles_path: Path | None = None,
+    layouts_path: Path | None = None,
 ) -> dict[str, Any]:
-    return validate_lock(read_yaml(path), profiles_data=load_profiles(profiles_path))
+    return validate_lock(
+        read_yaml(path),
+        profiles_data=load_profiles(profiles_path),
+        layouts_data=load_layouts(layouts_path),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate a starry diagram lock file.")
     parser.add_argument("lock_file", type=Path)
     parser.add_argument("--profiles", type=Path)
+    parser.add_argument("--layouts", type=Path)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args(argv)
 
-    report = validate_lock_file(args.lock_file, profiles_path=args.profiles)
+    report = validate_lock_file(
+        args.lock_file,
+        profiles_path=args.profiles,
+        layouts_path=args.layouts,
+    )
     if args.report is not None:
         write_json(args.report, report)
     return 0 if report["status"] == "passed" else 1

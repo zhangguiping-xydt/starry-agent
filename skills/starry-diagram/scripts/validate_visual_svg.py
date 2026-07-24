@@ -22,7 +22,8 @@ try:
         svg_text_content,
         write_json,
     )
-    from profiles import enhancement_rank, load_profiles, profile_for
+    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
+    from visual_geometry import analyze_visual_geometry
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
@@ -40,7 +41,8 @@ except ModuleNotFoundError:
         svg_text_content,
         write_json,
     )
-    from profiles import enhancement_rank, load_profiles, profile_for
+    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
+    from visual_geometry import analyze_visual_geometry
 
 
 _NUMBER_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)")
@@ -125,6 +127,26 @@ def _validate_typography(
                 errors.append(
                     f"visual.svg uses font family outside style_tokens: {element_family}"
                 )
+
+    edge_label_minimum = typography.get("edge_label_size")
+    if isinstance(edge_label_minimum, int | float):
+        for element in root.iter():
+            if _inferred_kind(element) not in _EDGE_LIKE_KINDS:
+                continue
+            for descendant in element.iter():
+                if descendant.tag.rsplit("}", 1)[-1] != "text":
+                    continue
+                size = _number(descendant.attrib.get("font-size"))
+                if size is not None and size < float(edge_label_minimum):
+                    item_id = (
+                        element.attrib.get("data-diagram-id")
+                        or element.attrib.get("id")
+                        or "<unknown>"
+                    )
+                    errors.append(
+                        f"edge label {item_id} font-size {size:g} is below "
+                        f"style_tokens typography edge_label_size {edge_label_minimum}"
+                    )
     return {
         "minimum": min(seen_sizes) if seen_sizes else None,
         "families": sorted(seen_families),
@@ -294,10 +316,12 @@ def validate_visual(
     *,
     semantic_path: Path | None = None,
     profiles_data: dict[str, Any] | None = None,
+    layouts_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
     profiles_data = profiles_data or load_profiles()
+    layouts_data = layouts_data or load_layouts()
 
     try:
         root = parse_svg(svg_path)
@@ -333,6 +357,38 @@ def validate_visual(
         errors,
         warnings,
     )
+    geometry_report: dict[str, Any] = {"checked": False}
+    actual_viewbox = parse_viewbox(root.attrib.get("viewBox"))
+    layout_plan = lock.get("layout_plan", {})
+    pattern = layout_plan.get("pattern") if isinstance(layout_plan, Mapping) else None
+    layout = layout_for(pattern, layouts_data)
+    if actual_viewbox is not None and layout is not None:
+        quality_limits = layout.get("quality_limits", {})
+        if isinstance(quality_limits, Mapping):
+            effective_limits = dict(quality_limits)
+            visual_style = lock.get("visual_style", {})
+            level = (
+                visual_style.get("enhancement_level")
+                if isinstance(visual_style, Mapping)
+                else None
+            )
+            level_rank = enhancement_rank(level, profiles_data)
+            medium_rank = enhancement_rank("medium", profiles_data)
+            if (
+                level_rank is not None
+                and medium_rank is not None
+                and level_rank < medium_rank
+            ):
+                effective_limits["min_analyzable_edge_fraction"] = 0.0
+            geometry_report, geometry_errors, geometry_warnings = analyze_visual_geometry(
+                root,
+                actual_viewbox,
+                effective_limits,
+            )
+            geometry_report["checked"] = True
+            geometry_report["pattern"] = pattern
+            errors.extend(geometry_errors)
+            warnings.extend(geometry_warnings)
 
     return {
         "status": "failed" if errors else "passed",
@@ -343,6 +399,7 @@ def validate_visual(
             "typography": typography_report,
             "semantic_identity": identity_report,
             "visual_change": change_report,
+            "geometry": geometry_report,
         },
     }
 
@@ -353,6 +410,7 @@ def validate_visual_svg(
     *,
     semantic_path: Path | None = None,
     profiles_path: Path | None = None,
+    layouts_path: Path | None = None,
 ) -> dict[str, Any]:
     lock = read_yaml(lock_path)
     svg_text = svg_path.read_text(encoding="utf-8")
@@ -362,6 +420,7 @@ def validate_visual_svg(
         svg_path,
         semantic_path=semantic_path,
         profiles_data=load_profiles(profiles_path),
+        layouts_data=load_layouts(layouts_path),
     )
 
 
@@ -371,6 +430,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("svg_file", type=Path)
     parser.add_argument("--semantic-svg", type=Path)
     parser.add_argument("--profiles", type=Path)
+    parser.add_argument("--layouts", type=Path)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args(argv)
 
@@ -379,6 +439,7 @@ def main(argv: list[str] | None = None) -> int:
         args.svg_file,
         semantic_path=args.semantic_svg,
         profiles_path=args.profiles,
+        layouts_path=args.layouts,
     )
     if args.report is not None:
         write_json(args.report, report)

@@ -30,6 +30,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Generated entries declare renderer and enhancement level allowed by their type profile.
 - Skipped and needs_clarification entries name the missing facts.
 - Generated entry id, type, renderer, style, and enhancement level match diagram_lock.yaml.
+- Generated entry layout pattern matches diagram_lock.yaml.
 
 ## Semantic checks
 
@@ -48,6 +49,11 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Edge endpoints and group/lane memberships match the lock.
 - No unlisted semantic identity is introduced.
 - Medium and strong enhancement are not geometry-identical to semantic.svg.
+- Every non-container semantic item is covered by the layout plan and every edge has one visual role.
+- Selected layout complexity limits are not exceeded without explicit user approval.
+- Analyzable edge coverage meets the selected layout threshold.
+- Edge crossings, edge-to-nonendpoint-node intersections, and long routes stay within the selected layout limits.
+- Edge labels meet `style_tokens.typography.edge_label_size`, not only the global minimum.
 
 ## Failure handling
 

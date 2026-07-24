@@ -18,6 +18,7 @@ diagrams:
     style_id: clean-technical
     source_format: graphviz
     enhancement_level: strong
+    layout_pattern: layered-system
     output_dir: architecture-overview
   - id: domain-er
     title: 领域实体关系

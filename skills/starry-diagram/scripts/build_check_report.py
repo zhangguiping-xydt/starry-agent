@@ -55,6 +55,7 @@ def build_check_report(
     diagram_dir: Path,
     *,
     profiles_path: Path | None = None,
+    layouts_path: Path | None = None,
 ) -> dict[str, Any]:
     lock_path = diagram_dir / "diagram_lock.yaml"
     semantic_path = diagram_dir / "semantic.svg"
@@ -62,7 +63,11 @@ def build_check_report(
 
     if lock_path.exists():
         lock = read_yaml(lock_path)
-        lock_report = validate_lock_file(lock_path, profiles_path=profiles_path)
+        lock_report = validate_lock_file(
+            lock_path,
+            profiles_path=profiles_path,
+            layouts_path=layouts_path,
+        )
         source_path = diagram_dir / source_filename(lock.get("source_format"))
     else:
         lock = {}
@@ -80,6 +85,7 @@ def build_check_report(
             visual_path,
             semantic_path=semantic_path,
             profiles_path=profiles_path,
+            layouts_path=layouts_path,
         )
         if lock_path.exists() and semantic_path.exists() and visual_path.exists()
         else _missing_report("semantic.svg or visual.svg", visual_path)
@@ -128,9 +134,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build reports for one starry diagram directory.")
     parser.add_argument("diagram_dir", type=Path)
     parser.add_argument("--profiles", type=Path)
+    parser.add_argument("--layouts", type=Path)
     args = parser.parse_args(argv)
 
-    report = build_check_report(args.diagram_dir, profiles_path=args.profiles)
+    report = build_check_report(
+        args.diagram_dir,
+        profiles_path=args.profiles,
+        layouts_path=args.layouts,
+    )
     return 0 if report["status"] == "passed" else 1
 
 

@@ -5,6 +5,20 @@ source_format: graphviz
 visual_style:
   style_id: clean-technical
   enhancement_level: strong
+layout_plan:
+  pattern: layered-system
+  direction: left-to-right
+  density: balanced
+  view_role: standalone
+  primary_items:
+    - frontend-chat-entry
+    - workflow-orchestration-service
+  regions: []
+  edge_roles:
+    primary:
+      - frontend-to-workflow
+    secondary: []
+    control: []
 canvas:
   mode: fixed
   width: 1280
@@ -45,7 +59,7 @@ style_tokens:
     title_size: 22
     node_size: 13
     edge_label_size: 11
-    min_font_size: 10
+    min_font_size: 11
   geometry:
     node_padding_x: 18
     node_padding_y: 12

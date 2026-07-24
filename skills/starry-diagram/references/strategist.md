@@ -2,7 +2,7 @@
 
 Mission: transform source material into a diagram pack plan that is explicit, source-grounded, and safe to execute.
 
-Read `../templates/profiles/diagram_profiles.yaml` before choosing a renderer or enhancement level. The selected type profile is an executable contract, not a suggestion.
+Read `../templates/profiles/diagram_profiles.yaml` and `../templates/layouts/technical_layouts.yaml` before choosing a renderer, layout, or enhancement level. The selected type profile and layout pattern are executable contracts, not suggestions.
 
 Outputs:
 - `diagram_manifest.yaml` at the pack root.
@@ -31,11 +31,15 @@ Do not infer services, roles, fields, relationships, states, calls, events, or c
 
 ## Manifest fields
 
-Use `project`, `mode`, `source_summary`, `naming_glossary`, and `diagrams`. `naming_glossary` records pack-level canonical ids and labels so the same entity uses the same identity across diagrams. Each diagram entry records `id`, `title`, `type`, `status`, `reason`, `source_refs`, and `style_id`; generated diagrams also record output directory. Entries with `needs_clarification` or fact-insufficient `skipped` status include a non-empty `missing` list naming the absent facts.
+Use `project`, `mode`, `source_summary`, `naming_glossary`, and `diagrams`. `naming_glossary` records pack-level canonical ids and labels so the same entity uses the same identity across diagrams. Each diagram entry records `id`, `title`, `type`, `status`, `reason`, `source_refs`, and `style_id`; generated diagrams also record output directory and `layout_pattern`. A non-preferred pattern also records `layout_reason`. Entries with `needs_clarification` or fact-insufficient `skipped` status include a non-empty `missing` list naming the absent facts.
 
 ## Lock fields
 
-Use `id`, `title`, `type`, `source_format`, `visual_style`, `canvas`, `style_tokens`, and every semantic section required by the selected profile. Examples include nodes/edges/groups, participants/messages, entities/relationships, states/transitions, or lanes. Edge-like records include `kind: command | event | data | projection | call` whenever command flow, event flow, data flow, projections, or service calls could otherwise be confused.
+Use `id`, `title`, `type`, `source_format`, `visual_style`, `layout_plan`, `canvas`, `style_tokens`, and every semantic section required by the selected profile. Examples include nodes/edges/groups, participants/messages, entities/relationships, states/transitions, or lanes. Edge-like records include `kind: command | event | data | projection | call` whenever command flow, event flow, data flow, projections, or service calls could otherwise be confused.
+
+The layout plan selects one allowed catalog pattern, direction, density, and view role; covers every non-container semantic item through `primary_items` or one region; and classifies every edge-like item exactly once as primary, secondary, or control. Follow `layout-planning.md`.
+
+Apply the selected pattern's section and total-item limits before locking semantics. Split over-budget content into multiple manifest entries. Do not use a larger auto canvas or smaller typography as a substitute for splitting.
 
 Use `canvas.mode: fixed` when the target dimensions are a real delivery constraint. Make its viewBox exactly `0 0 <width> <height>`. Use `canvas.mode: auto` for topology-driven technical diagrams that should grow with their contents; optionally set max_width, max_height, and margin.
 

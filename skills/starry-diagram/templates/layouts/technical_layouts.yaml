@@ -1,0 +1,257 @@
+version: 1
+patterns:
+  layered-system:
+    summary: Stack technical layers or runtime tiers with dependencies flowing in one direction.
+    supports: [architecture, component, deployment, concept]
+    directions: [top-to-bottom, left-to-right]
+    section_limits: {nodes: 20, edges: 28, groups: 6}
+    max_total_items: 50
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 1.0
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Allocate layer and boundary rectangles before placing nodes.
+      - Route dependencies through layer gaps instead of through peer nodes.
+      - Keep the dominant dependency direction consistent across the canvas.
+  bounded-context-map:
+    summary: Show domain or runtime boundaries with a small number of labeled cross-boundary relationships.
+    supports: [architecture, business-architecture, component]
+    directions: [left-to-right, top-to-bottom]
+    section_limits: {nodes: 18, edges: 22, groups: 8}
+    max_total_items: 48
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 1.0
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Make boundaries primary and internal nodes secondary.
+      - Use explicit ports or boundary gaps for cross-boundary edges.
+      - Split when cross-boundary relationships dominate internal structure.
+  dependency-map:
+    summary: Show components or packages and their directed dependency graph.
+    supports: [architecture, component]
+    directions: [left-to-right, top-to-bottom]
+    section_limits: {nodes: 18, edges: 26, groups: 6}
+    max_total_items: 48
+    quality_limits:
+      max_edge_crossings: 1
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 1.0
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Rank nodes by dependency depth before routing edges.
+      - Keep cycles visually isolated and explicitly labeled.
+      - Do not use a force-directed layout for a directed dependency story.
+  deployment-zones:
+    summary: Nest environments, zones, hosts, containers, and deployed components.
+    supports: [deployment, architecture]
+    directions: [top-to-bottom, left-to-right]
+    section_limits: {nodes: 20, edges: 24, groups: 8}
+    max_total_items: 52
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 1.0
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Draw containment before network or runtime connections.
+      - Keep environment and trust boundaries visually distinct.
+      - Route cross-zone links through the nearest boundary edge.
+  capability-map:
+    summary: Arrange business capabilities or domains as a balanced hierarchy or matrix.
+    supports: [business-architecture, concept]
+    directions: [top-to-bottom, matrix]
+    section_limits: {nodes: 24, edges: 12, groups: 8}
+    max_total_items: 50
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 0.9
+      min_analyzable_edge_fraction: 0.6
+    rules:
+      - Prefer containment and alignment over connector-heavy composition.
+      - Keep peer capabilities equal in size and spacing.
+      - Move value-stream relationships to a separate view when they obscure the map.
+  value-stream:
+    summary: Show business stages and the capabilities or roles contributing to each stage.
+    supports: [business-architecture, flow]
+    directions: [left-to-right]
+    section_limits: {nodes: 16, edges: 18, groups: 6}
+    max_total_items: 40
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 0.9
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Reserve one uninterrupted band for the value stream.
+      - Place supporting capabilities above or below their stages.
+      - Avoid bidirectional arrows on the primary stream.
+  linear-flow:
+    summary: Show three to eight ordered steps with at most one minor branch.
+    supports: [flow]
+    directions: [left-to-right, top-to-bottom]
+    section_limits: {nodes: 8, edges: 10, groups: 3}
+    max_total_items: 21
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 0.85
+      min_analyzable_edge_fraction: 0.9
+    rules:
+      - Keep the primary path on one visual axis.
+      - Put labels adjacent to short connectors, never on top of nodes.
+      - Use branching-flow when decisions create more than one substantial branch.
+  branching-flow:
+    summary: Show a primary process with decisions, exception branches, and explicit convergence.
+    supports: [flow, state]
+    directions: [left-to-right, top-to-bottom]
+    section_limits: {nodes: 14, edges: 18, groups: 4}
+    max_total_items: 36
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 0.95
+      min_analyzable_edge_fraction: 0.9
+    rules:
+      - Keep the happy path straight and route exceptions away from it.
+      - Converge branches before the next major phase when semantics permit.
+      - Route loopbacks on an outer rail instead of across the process body.
+  control-sidecar-flow:
+    summary: Show a primary flow plus a separate state, policy, evidence, or control plane.
+    supports: [flow, data-flow, event-flow, concept]
+    directions: [left-to-right, top-to-bottom]
+    section_limits: {nodes: 18, edges: 24, groups: 5}
+    max_total_items: 47
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 0.95
+      min_analyzable_edge_fraction: 0.9
+    rules:
+      - Reserve a side or bottom rail for control-plane nodes before placing the main flow.
+      - Connect the control plane through shared buses or ports, not repeated full-canvas diagonals.
+      - Split control details into a companion diagram when the sidecar exceeds four nodes or eight links.
+  swimlane-flow:
+    summary: Show responsibility handoffs across actor, team, or system lanes.
+    supports: [swimlane, flow]
+    directions: [left-to-right, top-to-bottom]
+    section_limits: {nodes: 18, edges: 22, lanes: 6}
+    max_total_items: 48
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 1.0
+      min_analyzable_edge_fraction: 0.9
+    rules:
+      - Allocate lanes before activities and keep each activity inside its owner lane.
+      - Prefer straight handoffs across adjacent lane boundaries.
+      - Split phases when repeated long-range handoffs create crossings.
+  sequence-lifelines:
+    summary: Show ordered messages across stable participant lifelines.
+    supports: [sequence]
+    directions: [top-to-bottom]
+    section_limits: {participants: 10, messages: 30}
+    max_total_items: 40
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 99
+      max_long_edge_ratio: 0.9
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Keep participant order stable and messages strictly top-to-bottom.
+      - Use activation or grouping bands instead of moving messages out of order.
+      - Split scenarios when more than ten participants are required.
+  er-domain-grid:
+    summary: Arrange entities by domain with orthogonal relationship routing.
+    supports: [er]
+    directions: [left-to-right, top-to-bottom, matrix]
+    section_limits: {entities: 12, relationships: 18}
+    max_total_items: 30
+    quality_limits:
+      max_edge_crossings: 1
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 1.0
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Cluster entities by domain or aggregate before routing relationships.
+      - Keep cardinalities adjacent to their entity endpoints.
+      - Split large schemas by bounded context and add an overview relationship map.
+  state-transition:
+    summary: Show lifecycle states with a clear initial state, terminal states, and guarded transitions.
+    supports: [state]
+    directions: [left-to-right, top-to-bottom, radial]
+    section_limits: {states: 14, transitions: 20}
+    max_total_items: 34
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 0.95
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Put the primary lifecycle on one axis and exceptions outside it.
+      - Keep self-transitions and loopbacks on local outer arcs.
+      - Split orthogonal state regions into companion diagrams when needed.
+  data-pipeline:
+    summary: Show collection, transformation, storage, and consumption stages.
+    supports: [data-flow]
+    directions: [left-to-right, top-to-bottom]
+    section_limits: {nodes: 14, edges: 18, groups: 5}
+    max_total_items: 37
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 0.9
+      min_analyzable_edge_fraction: 0.9
+    rules:
+      - Keep data movement on the primary axis and transformations inside stages.
+      - Separate command or event edges from data edges visually and spatially.
+      - Split batch and streaming paths when they cannot share the same route cleanly.
+  data-hub:
+    summary: Show producers and consumers around a central store, platform, or exchange.
+    supports: [data-flow, architecture]
+    directions: [radial, left-to-right]
+    section_limits: {nodes: 16, edges: 22, groups: 5}
+    max_total_items: 43
+    quality_limits:
+      max_edge_crossings: 1
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 1.0
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Keep the hub visually dominant without turning every edge into a diagonal.
+      - Place producers and consumers in separate regions when direction matters.
+      - Use edge bundling or ports for repeated connections.
+  event-bus:
+    summary: Show producers, topics, subscribers, and projections around one or more event rails.
+    supports: [event-flow, architecture]
+    directions: [left-to-right, top-to-bottom]
+    section_limits: {nodes: 16, edges: 24, groups: 6}
+    max_total_items: 46
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 0.95
+      min_analyzable_edge_fraction: 0.9
+    rules:
+      - Draw event rails before producers and subscribers.
+      - Keep commands, events, and projections in separate visual channels.
+      - Split unrelated event domains rather than adding a second crossing rail.
+  loop-mechanism:
+    summary: Show a small conceptual feedback loop with explicit state and stopping conditions.
+    supports: [concept, flow]
+    directions: [radial, left-to-right]
+    section_limits: {nodes: 10, edges: 14, groups: 4}
+    max_total_items: 28
+    quality_limits:
+      max_edge_crossings: 0
+      max_edge_node_intersections: 0
+      max_long_edge_ratio: 0.9
+      min_analyzable_edge_fraction: 0.8
+    rules:
+      - Limit the visible loop to the stages necessary to explain the mechanism.
+      - Put evidence, guardrails, and stop conditions adjacent to the stage they constrain.
+      - Use a process detail diagram when operational steps exceed the loop budget.

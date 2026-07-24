@@ -8,13 +8,13 @@ from typing import Any
 
 try:
     from common import read_yaml, write_json
-    from profiles import enhancement_rank, load_profiles, profile_for
+    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import read_yaml, write_json
-    from profiles import enhancement_rank, load_profiles, profile_for
+    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
 
 
 _STATUSES = {"generated", "skipped", "needs_clarification"}
@@ -41,6 +41,7 @@ def _validate_generated_entry(
     entry: Mapping[str, Any],
     profile: dict[str, Any],
     profiles_data: dict[str, Any],
+    layouts_data: dict[str, Any],
     errors: list[str],
 ) -> None:
     entry_id = entry.get("id", "<missing>")
@@ -66,6 +67,20 @@ def _validate_generated_entry(
     directory = entry.get("directory") or entry.get("output_dir") or entry.get("id")
     if not _text(directory):
         errors.append(f"diagram {entry_id} must define a directory")
+
+    layout_pattern = entry.get("layout_pattern")
+    layout = layout_for(layout_pattern, layouts_data)
+    if layout is None:
+        errors.append(f"diagram {entry_id} has unknown layout_pattern {layout_pattern!r}")
+    elif layout_pattern not in profile.get("allowed_layout_patterns", []):
+        errors.append(
+            f"diagram {entry_id} layout_pattern {layout_pattern!r} is not allowed"
+        )
+    elif layout_pattern not in profile.get("preferred_layout_patterns", []):
+        if not _text(entry.get("layout_reason")):
+            errors.append(
+                f"diagram {entry_id} non-preferred layout requires layout_reason"
+            )
 
 
 def _validate_lock_consistency(
@@ -95,6 +110,11 @@ def _validate_lock_consistency(
     if isinstance(visual_style, Mapping):
         comparisons["style_id"] = visual_style.get("style_id")
         comparisons["enhancement_level"] = visual_style.get("enhancement_level")
+    layout_plan = lock.get("layout_plan", {})
+    if isinstance(layout_plan, Mapping):
+        comparisons["layout_pattern"] = layout_plan.get("pattern")
+        if "layout_reason" in entry or layout_plan.get("reason") is not None:
+            comparisons["layout_reason"] = layout_plan.get("reason")
     for field, lock_value in comparisons.items():
         entry_value = entry.get(field)
         if entry_value != lock_value:
@@ -109,10 +129,12 @@ def validate_manifest(
     *,
     root: Path | None = None,
     profiles_data: dict[str, Any] | None = None,
+    layouts_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
     profiles_data = profiles_data or load_profiles()
+    layouts_data = layouts_data or load_layouts()
 
     for field in ("project", "mode", "source_summary"):
         if not _text(manifest.get(field)):
@@ -155,7 +177,7 @@ def validate_manifest(
             continue
 
         if status == "generated":
-            _validate_generated_entry(entry, profile, profiles_data, errors)
+            _validate_generated_entry(entry, profile, profiles_data, layouts_data, errors)
             if root is not None:
                 _validate_lock_consistency(entry, root, errors)
         elif status in {"skipped", "needs_clarification"}:
@@ -171,11 +193,13 @@ def validate_manifest_file(
     *,
     root: Path | None = None,
     profiles_path: Path | None = None,
+    layouts_path: Path | None = None,
 ) -> dict[str, Any]:
     return validate_manifest(
         read_yaml(path),
         root=root,
         profiles_data=load_profiles(profiles_path),
+        layouts_data=load_layouts(layouts_path),
     )
 
 
@@ -184,6 +208,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("manifest_file", type=Path)
     parser.add_argument("--root", type=Path)
     parser.add_argument("--profiles", type=Path)
+    parser.add_argument("--layouts", type=Path)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args(argv)
 
@@ -191,6 +216,7 @@ def main(argv: list[str] | None = None) -> int:
         args.manifest_file,
         root=args.root,
         profiles_path=args.profiles,
+        layouts_path=args.layouts,
     )
     if args.report is not None:
         write_json(args.report, report)

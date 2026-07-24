@@ -15,7 +15,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from build_check_report import build_check_report  # noqa: E402
 from build_embed_blocks import build_embed_blocks  # noqa: E402
-from profiles import load_profiles  # noqa: E402
+from profiles import load_layouts, load_profiles  # noqa: E402
 from render_svg import render_svg  # noqa: E402
 from stamp_visual_metadata import stamp_visual_metadata  # noqa: E402
 from validate_diagram_lock import validate_lock  # noqa: E402
@@ -40,7 +40,7 @@ def _style_tokens() -> dict[str, object]:
             "title_size": 22,
             "node_size": 13,
             "edge_label_size": 11,
-            "min_font_size": 10,
+            "min_font_size": 11,
         },
         "geometry": {
             "node_padding_x": 18,
@@ -51,6 +51,31 @@ def _style_tokens() -> dict[str, object]:
             "corner_radius": 8,
         },
         "connectors": {"width": 1.6, "arrow_size": 7, "routing": "orthogonal"},
+    }
+
+
+def _layout_plan(
+    pattern: str,
+    direction: str,
+    primary_items: list[str],
+    primary_edges: list[str],
+    *,
+    secondary_edges: list[str] | None = None,
+    control_edges: list[str] | None = None,
+    regions: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    return {
+        "pattern": pattern,
+        "direction": direction,
+        "density": "balanced",
+        "view_role": "standalone",
+        "primary_items": primary_items,
+        "regions": regions or [],
+        "edge_roles": {
+            "primary": primary_edges,
+            "secondary": secondary_edges or [],
+            "control": control_edges or [],
+        },
     }
 
 
@@ -68,6 +93,12 @@ def _architecture_lock(
             "style_id": "clean-technical",
             "enhancement_level": enhancement,
         },
+        "layout_plan": _layout_plan(
+            "layered-system",
+            "left-to-right",
+            ["node-a", "node-b"],
+            ["a-to-b"],
+        ),
         "canvas": {"mode": "fixed", "width": 200, "height": 100, "viewBox": "0 0 200 100"},
         "nodes": [
             {"id": "node-a", "label": "Node A", "required": True},
@@ -115,7 +146,7 @@ def _svg(*, width: int = 200, shifted: bool = False, include_edge_endpoints: boo
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} 100">
   <rect width="{width}" height="100" fill="#f8fafc"/>
   <g data-diagram-id="runtime" data-diagram-kind="group" data-members="node-a,node-b">
-    <text x="8" y="14" font-family="Noto Sans CJK SC" font-size="10" fill="#0f172a">Runtime</text>
+    <text x="8" y="14" font-family="Noto Sans CJK SC" font-size="11" fill="#0f172a">Runtime</text>
   </g>
   <g data-diagram-id="node-a" data-diagram-kind="node">
     <rect x="20" y="30" width="50" height="30" fill="#ffffff" stroke="#2563eb"/>
@@ -178,6 +209,7 @@ def _write_manifest(tmp_path: Path, *, source_format: str = "graphviz") -> Path:
                         "style_id": "clean-technical",
                         "source_format": source_format,
                         "enhancement_level": "strong",
+                        "layout_pattern": "layered-system",
                         "directory": "architecture-overview",
                     }
                 ],
@@ -197,6 +229,10 @@ def test_profiles_cover_every_diagram_type_reference() -> None:
     assert profile_types == reference_types
     skill_text = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
     assert "references/diagram-types/<type>.md" in skill_text
+    layouts = load_layouts()["patterns"]
+    for diagram_type, profile in load_profiles()["profiles"].items():
+        for pattern in profile["allowed_layout_patterns"]:
+            assert diagram_type in layouts[pattern]["supports"]
 
 
 def test_lock_rejects_enhancement_below_type_minimum() -> None:
@@ -209,6 +245,14 @@ def test_lock_rejects_renderer_outside_type_profile() -> None:
     report = validate_lock(_architecture_lock(source_format="mermaid"))
     assert report["status"] == "failed"
     assert any("is not allowed" in error for error in report["errors"])
+
+
+def test_lock_enforces_typography_role_hierarchy() -> None:
+    lock = _architecture_lock()
+    lock["style_tokens"]["typography"]["edge_label_size"] = 9
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("title_size >= node_size" in error for error in report["errors"])
 
 
 def test_architecture_allows_empty_groups_without_inventing_boundaries() -> None:
@@ -233,6 +277,12 @@ def test_sequence_profile_validates_participants_and_message_order() -> None:
             "order": 1,
         }
     ]
+    lock["layout_plan"] = _layout_plan(
+        "sequence-lifelines",
+        "top-to-bottom",
+        ["client", "service"],
+        ["request"],
+    )
     assert validate_lock(lock)["status"] == "passed"
 
 
@@ -255,6 +305,12 @@ def test_er_profile_requires_fields_primary_keys_and_cardinalities() -> None:
             "to_cardinality": "many",
         }
     ]
+    lock["layout_plan"] = _layout_plan(
+        "er-domain-grid",
+        "left-to-right",
+        ["user", "order"],
+        ["user-orders"],
+    )
     report = validate_lock(lock)
     assert report["status"] == "failed"
     assert any("user must define a primary key" in error for error in report["errors"])
@@ -279,6 +335,12 @@ def test_swimlane_fallback_renderer_requires_reason_and_lane_ownership() -> None
         {"id": "requester", "label": "Requester", "members": ["submit"]},
         {"id": "reviewer", "label": "Reviewer", "members": ["review"]},
     ]
+    lock["layout_plan"] = _layout_plan(
+        "swimlane-flow",
+        "left-to-right",
+        ["submit", "review"],
+        ["submit-review"],
+    )
     without_reason = validate_lock(lock)
     assert without_reason["status"] == "failed"
     assert any("requires renderer_reason" in error for error in without_reason["errors"])
@@ -287,6 +349,93 @@ def test_swimlane_fallback_renderer_requires_reason_and_lane_ownership() -> None
     with_reason = validate_lock(lock)
     assert with_reason["status"] == "passed"
     assert any("non-preferred" in warning for warning in with_reason["warnings"])
+
+
+def test_lock_requires_complete_layout_plan() -> None:
+    lock = _architecture_lock()
+    del lock["layout_plan"]
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("layout_plan" in error for error in report["errors"])
+
+
+def test_lock_requires_explicit_layout_regions_and_edge_roles() -> None:
+    lock = _architecture_lock()
+    del lock["layout_plan"]["regions"]
+    del lock["layout_plan"]["edge_roles"]["secondary"]
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("layout_plan.regions must be a list" in error for error in report["errors"])
+    assert any(
+        "layout_plan.edge_roles must define secondary" in error
+        for error in report["errors"]
+    )
+
+
+def test_lock_rejects_unplanned_items_and_edges() -> None:
+    lock = _architecture_lock()
+    lock["layout_plan"] = _layout_plan(
+        "layered-system",
+        "left-to-right",
+        ["node-a"],
+        [],
+    )
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("unplanned" in error for error in report["errors"])
+    assert any("unclassified" in error for error in report["errors"])
+
+
+def test_non_preferred_layout_requires_reason() -> None:
+    lock = _architecture_lock()
+    lock["layout_plan"]["pattern"] = "dependency-map"
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("requires layout_plan.reason" in error for error in report["errors"])
+
+    lock["layout_plan"]["reason"] = "The source is dependency-centric and has no runtime tiers."
+    assert validate_lock(lock)["status"] == "passed"
+
+
+def _linear_flow_lock(node_count: int) -> dict[str, object]:
+    lock = _base_lock("flow", "mermaid", "medium")
+    node_ids = [f"step-{index}" for index in range(node_count)]
+    edge_ids = [f"edge-{index}" for index in range(node_count - 1)]
+    lock["nodes"] = [{"id": item_id, "label": item_id} for item_id in node_ids]
+    lock["edges"] = [
+        {
+            "id": edge_id,
+            "from": node_ids[index],
+            "to": node_ids[index + 1],
+            "label": "next",
+            "kind": "command",
+        }
+        for index, edge_id in enumerate(edge_ids)
+    ]
+    lock["layout_plan"] = _layout_plan(
+        "linear-flow",
+        "left-to-right",
+        node_ids,
+        edge_ids,
+    )
+    return lock
+
+
+def test_lock_rejects_layout_over_complexity_budget() -> None:
+    report = validate_lock(_linear_flow_lock(9))
+    assert report["status"] == "failed"
+    assert any("complexity exceeded" in error for error in report["errors"])
+
+
+def test_lock_allows_only_user_approved_complexity_exception() -> None:
+    lock = _linear_flow_lock(9)
+    lock["layout_plan"]["complexity_exception"] = {
+        "user_approved": True,
+        "reason": "The user explicitly requires one printable end-to-end flow.",
+    }
+    report = validate_lock(lock)
+    assert report["status"] == "passed"
+    assert any("user-approved exception" in warning for warning in report["warnings"])
 
 
 def test_visual_rejects_medium_or_strong_noop(tmp_path: Path) -> None:
@@ -298,6 +447,105 @@ def test_visual_rejects_medium_or_strong_noop(tmp_path: Path) -> None:
     )
     assert report["status"] == "failed"
     assert any("visual stage was a no-op" in error for error in report["visual"]["errors"])
+
+
+def test_visual_rejects_crossing_edges(tmp_path: Path) -> None:
+    lock = _base_lock("flow", "mermaid", "medium")
+    lock["nodes"] = [
+        {"id": "a", "label": "A"},
+        {"id": "b", "label": "B"},
+        {"id": "c", "label": "C"},
+        {"id": "d", "label": "D"},
+    ]
+    lock["edges"] = [
+        {"id": "a-b", "from": "a", "to": "b", "label": "AB", "kind": "command"},
+        {"id": "c-d", "from": "c", "to": "d", "label": "CD", "kind": "command"},
+    ]
+    lock["layout_plan"] = _layout_plan(
+        "branching-flow",
+        "left-to-right",
+        ["a", "b", "c", "d"],
+        ["a-b", "c-d"],
+    )
+    lock_path = tmp_path / "diagram_lock.yaml"
+    svg_path = tmp_path / "visual.svg"
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    svg_path.write_text(
+        '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+  <rect width="200" height="120" fill="#f8fafc"/>
+  <g data-diagram-id="a" data-diagram-kind="node"><rect x="10" y="10" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="20" y="25" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">A</text></g>
+  <g data-diagram-id="b" data-diagram-kind="node"><rect x="160" y="90" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="170" y="105" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">B</text></g>
+  <g data-diagram-id="c" data-diagram-kind="node"><rect x="10" y="90" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="20" y="105" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">C</text></g>
+  <g data-diagram-id="d" data-diagram-kind="node"><rect x="160" y="10" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="170" y="25" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">D</text></g>
+  <g data-diagram-id="a-b" data-diagram-kind="edge" data-from="a" data-to="b"><line x1="40" y1="30" x2="160" y2="90" stroke="#94a3b8"/><text x="95" y="54" font-family="Noto Sans CJK SC" font-size="11" fill="#64748b">AB</text></g>
+  <g data-diagram-id="c-d" data-diagram-kind="edge" data-from="c" data-to="d"><line x1="40" y1="90" x2="160" y2="30" stroke="#94a3b8"/><text x="95" y="78" font-family="Noto Sans CJK SC" font-size="11" fill="#64748b">CD</text></g>
+</svg>''',
+        encoding="utf-8",
+    )
+    report = validate_visual_svg(lock_path, svg_path)
+    assert report["status"] == "failed"
+    assert len(report["visual"]["geometry"]["edge_crossings"]) == 1
+    assert any("edge crossing" in error for error in report["visual"]["errors"])
+
+
+def test_visual_rejects_edge_through_nonendpoint_node(tmp_path: Path) -> None:
+    lock = _base_lock("flow", "mermaid", "medium")
+    lock["nodes"] = [
+        {"id": "a", "label": "A"},
+        {"id": "middle", "label": "Middle"},
+        {"id": "b", "label": "B"},
+    ]
+    lock["edges"] = [
+        {"id": "a-b", "from": "a", "to": "b", "label": "AB", "kind": "command"}
+    ]
+    lock["layout_plan"] = _layout_plan(
+        "linear-flow",
+        "left-to-right",
+        ["a", "middle", "b"],
+        ["a-b"],
+    )
+    lock_path = tmp_path / "diagram_lock.yaml"
+    svg_path = tmp_path / "visual.svg"
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    svg_path.write_text(
+        '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
+  <rect width="200" height="100" fill="#f8fafc"/>
+  <g data-diagram-id="a" data-diagram-kind="node"><rect x="10" y="40" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="20" y="55" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">A</text></g>
+  <g data-diagram-id="middle" data-diagram-kind="node"><rect x="85" y="35" width="30" height="30" fill="#ffffff" stroke="#2563eb"/><text x="88" y="54" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">Middle</text></g>
+  <g data-diagram-id="b" data-diagram-kind="node"><rect x="160" y="40" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="170" y="55" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">B</text></g>
+  <g data-diagram-id="a-b" data-diagram-kind="edge" data-from="a" data-to="b"><line x1="40" y1="50" x2="160" y2="50" stroke="#94a3b8"/><text x="65" y="44" font-family="Noto Sans CJK SC" font-size="11" fill="#64748b">AB</text></g>
+</svg>''',
+        encoding="utf-8",
+    )
+    report = validate_visual_svg(lock_path, svg_path)
+    assert report["status"] == "failed"
+    assert report["visual"]["geometry"]["edge_node_intersections"] == [
+        {"edge": "a-b", "node": "middle"}
+    ]
+    assert any("nonendpoint-node" in error for error in report["visual"]["errors"])
+
+
+def test_visual_enforces_edge_label_role_size(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    lock_path = diagram_dir / "diagram_lock.yaml"
+    lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+    lock["style_tokens"]["typography"]["min_font_size"] = 10
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    visual_path = diagram_dir / "visual.svg"
+    visual_path.write_text(
+        visual_path.read_text(encoding="utf-8").replace(
+            'font-size="11" fill="#64748b">Calls',
+            'font-size="10" fill="#64748b">Calls',
+        ),
+        encoding="utf-8",
+    )
+    report = validate_visual_svg(
+        lock_path,
+        visual_path,
+        semantic_path=diagram_dir / "semantic.svg",
+    )
+    assert report["status"] == "failed"
+    assert any("edge_label_size" in error for error in report["visual"]["errors"])
 
 
 def test_visual_rejects_fixed_canvas_mismatch(tmp_path: Path) -> None:

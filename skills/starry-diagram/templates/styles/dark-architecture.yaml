@@ -12,7 +12,7 @@ typography:
   title_size: 22
   node_size: 13
   edge_label_size: 11
-  min_font_size: 10
+  min_font_size: 11
 geometry:
   node_padding_x: 18
   node_padding_y: 12

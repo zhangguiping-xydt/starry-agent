@@ -7,6 +7,8 @@ profiles:
   architecture:
     preferred_source_formats: [graphviz]
     allowed_source_formats: [graphviz]
+    preferred_layout_patterns: [layered-system, bounded-context-map]
+    allowed_layout_patterns: [layered-system, bounded-context-map, dependency-map, data-hub, deployment-zones, event-bus]
     minimum_enhancement: strong
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
@@ -14,6 +16,8 @@ profiles:
   business-architecture:
     preferred_source_formats: [graphviz, mermaid]
     allowed_source_formats: [graphviz, mermaid]
+    preferred_layout_patterns: [capability-map, value-stream, bounded-context-map]
+    allowed_layout_patterns: [capability-map, value-stream, bounded-context-map]
     minimum_enhancement: strong
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
@@ -21,6 +25,8 @@ profiles:
   component:
     preferred_source_formats: [graphviz]
     allowed_source_formats: [graphviz]
+    preferred_layout_patterns: [dependency-map, layered-system]
+    allowed_layout_patterns: [dependency-map, layered-system, bounded-context-map]
     minimum_enhancement: strong
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
@@ -28,6 +34,8 @@ profiles:
   concept:
     preferred_source_formats: [svg]
     allowed_source_formats: [svg]
+    preferred_layout_patterns: [loop-mechanism, capability-map]
+    allowed_layout_patterns: [loop-mechanism, capability-map, layered-system, control-sidecar-flow]
     minimum_enhancement: strong
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
@@ -35,6 +43,8 @@ profiles:
   data-flow:
     preferred_source_formats: [graphviz, mermaid]
     allowed_source_formats: [graphviz, mermaid]
+    preferred_layout_patterns: [data-pipeline, data-hub]
+    allowed_layout_patterns: [data-pipeline, data-hub, control-sidecar-flow]
     minimum_enhancement: strong
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
@@ -42,6 +52,8 @@ profiles:
   deployment:
     preferred_source_formats: [plantuml, graphviz]
     allowed_source_formats: [plantuml, graphviz]
+    preferred_layout_patterns: [deployment-zones]
+    allowed_layout_patterns: [deployment-zones, layered-system]
     minimum_enhancement: strong
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes]
@@ -49,6 +61,8 @@ profiles:
   er:
     preferred_source_formats: [mermaid, plantuml]
     allowed_source_formats: [mermaid, plantuml]
+    preferred_layout_patterns: [er-domain-grid]
+    allowed_layout_patterns: [er-domain-grid]
     minimum_enhancement: light
     required_sections: [entities, relationships]
     non_empty_sections: [entities, relationships]
@@ -56,6 +70,8 @@ profiles:
   event-flow:
     preferred_source_formats: [mermaid, graphviz]
     allowed_source_formats: [mermaid, graphviz]
+    preferred_layout_patterns: [event-bus]
+    allowed_layout_patterns: [event-bus, control-sidecar-flow]
     minimum_enhancement: strong
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
@@ -63,6 +79,8 @@ profiles:
   flow:
     preferred_source_formats: [mermaid]
     allowed_source_formats: [mermaid, graphviz]
+    preferred_layout_patterns: [linear-flow, branching-flow, control-sidecar-flow]
+    allowed_layout_patterns: [linear-flow, branching-flow, control-sidecar-flow, swimlane-flow, value-stream, loop-mechanism]
     minimum_enhancement: medium
     required_sections: [nodes, edges]
     non_empty_sections: [nodes, edges]
@@ -70,6 +88,8 @@ profiles:
   sequence:
     preferred_source_formats: [plantuml, mermaid]
     allowed_source_formats: [plantuml, mermaid]
+    preferred_layout_patterns: [sequence-lifelines]
+    allowed_layout_patterns: [sequence-lifelines]
     minimum_enhancement: light
     required_sections: [participants, messages]
     non_empty_sections: [participants, messages]
@@ -77,6 +97,8 @@ profiles:
   state:
     preferred_source_formats: [mermaid]
     allowed_source_formats: [mermaid, plantuml]
+    preferred_layout_patterns: [state-transition]
+    allowed_layout_patterns: [state-transition, branching-flow]
     minimum_enhancement: light
     required_sections: [states, transitions]
     non_empty_sections: [states, transitions]
@@ -84,6 +106,8 @@ profiles:
   swimlane:
     preferred_source_formats: [plantuml]
     allowed_source_formats: [plantuml, graphviz]
+    preferred_layout_patterns: [swimlane-flow]
+    allowed_layout_patterns: [swimlane-flow]
     minimum_enhancement: medium
     required_sections: [lanes, nodes, edges]
     non_empty_sections: [lanes, nodes, edges]

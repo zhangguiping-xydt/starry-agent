@@ -26,6 +26,19 @@ The output is a technical diagram. Prioritize notation fidelity, topology, conta
 
 Only use `style_tokens` for visual decisions.
 
+## Layout execution
+
+Read `layout_plan` and the selected entry in `templates/layouts/technical_layouts.yaml` before editing geometry.
+
+1. Allocate regions, lanes, layers, boundaries, or rails before placing nodes.
+2. Place `primary_items` on the pattern's dominant reading axis.
+3. Place secondary region members without weakening the primary path.
+4. Route `edge_roles.primary`, then `secondary`, then `control`.
+5. Route loopbacks and control links on outer rails, shared buses, or explicit ports.
+6. Run the geometry-aware visual gate and revise until it passes.
+
+Do not solve excess complexity by shrinking labels, lengthening the canvas, or routing repeated diagonals across unrelated regions.
+
 ## Semantic metadata
 
 Wrap every semantic visual item in a group with `data-diagram-id` and `data-diagram-kind`. Edge-like items also carry `data-from` and `data-to`. Groups and lanes carry `data-members="id-a,id-b"`. These attributes make semantic equivalence machine-verifiable and do not affect rendering.

@@ -11,7 +11,7 @@ Create trustworthy diagram packs from source material. The semantic source is tr
 
 ## Mandatory Pipeline
 
-Source intake → Diagram Strategist → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → Semantic track before visual track → Semantic quality gate → Visual track → Visual quality gate → `embed.md` and reports.
+Source intake → Diagram Strategist → layout-pattern and complexity gate → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → Semantic track before visual track → Semantic quality gate → Visual track → geometry-aware visual quality gate → `embed.md` and reports.
 
 Execute every gate with the bundled scripts. A written claim that a gate passed is not sufficient.
 
@@ -25,7 +25,9 @@ Do not invent services, roles, fields, relationships, states, calls, events, or 
 
 ## Type profile gate
 
-Before creating a generated entry, read `templates/profiles/diagram_profiles.yaml` and the selected `references/diagram-types/<type>.md`. Treat the profile as authoritative for required semantic sections, allowed renderers, and minimum enhancement level. When using an allowed but non-preferred renderer, record a non-empty `renderer_reason` in the lock.
+Before creating a generated entry, read `templates/profiles/diagram_profiles.yaml`, `templates/layouts/technical_layouts.yaml`, and the selected `references/diagram-types/<type>.md`. Treat the type profile and selected layout pattern as executable contracts for semantic sections, renderers, composition, complexity limits, routing quality, and enhancement level. Record `layout_pattern` in the manifest and a complete `layout_plan` in the lock. When using an allowed but non-preferred renderer or layout, record a source-grounded reason.
+
+If a candidate exceeds the selected layout pattern's section or total-item limits, split it into overview/detail or separate concern diagrams before creating the lock. Only an explicit user-approved `layout_plan.complexity_exception` may keep an over-budget single diagram.
 
 Run `python scripts/validate_diagram_manifest.py <diagram_manifest.yaml> --root <pack-root>` and `python scripts/validate_diagram_lock.py <diagram_lock.yaml>` before writing semantic source. Do not continue after a failed manifest or lock.
 
@@ -49,6 +51,8 @@ Every semantic visual group must declare `data-diagram-id` and `data-diagram-kin
 
 For medium and strong enhancement, visual.svg must contain a real geometric or typographic improvement. Copying semantic.svg or changing metadata only is a failed visual stage.
 
+Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. Keep loopbacks and control links on outer rails or shared buses. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unsupported geometry coverage, overlong routes, and undersized edge labels.
+
 Run:
 
 ```bash
@@ -61,8 +65,10 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 ## References
 
 - `templates/profiles/diagram_profiles.yaml` for executable per-type contracts.
+- `templates/layouts/technical_layouts.yaml` for technical composition patterns, budgets, and geometry limits.
 - `references/diagram-types/<type>.md` for the selected diagram type.
 - `references/strategist.md` for diagram pack planning and locks.
+- `references/layout-planning.md` for the layout-plan schema and construction order.
 - `references/semantic-executor.md` for Mermaid/PlantUML/Graphviz/source routing.
 - `references/visual-executor.md` for allowed visual enhancement.
 - `references/quality-gate.md` for validation and failure handling.
@@ -75,6 +81,10 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Naming the same node differently across diagrams, such as `Auth Service` in one diagram and `Authentication API` in another without a glossary mapping; use one canonical label/id from the pack glossary.
 - Treating `visual.svg` as a place to add unstated relationships.
 - Treating a technical diagram as a slide or infographic.
+- Selecting a layout after SVG generation instead of before the lock.
+- Keeping an over-budget diagram on one canvas by shrinking text or expanding the canvas.
+- Leaving semantic items out of `primary_items`/regions or edges out of `edge_roles`.
+- Routing control links repeatedly across the primary flow instead of using a side rail or companion view.
 - Using a renderer or enhancement level that violates the selected type profile.
 - Copying `semantic.svg` to `visual.svg` for medium or strong enhancement.
 - Omitting stable semantic ids and endpoint metadata from visual.svg.

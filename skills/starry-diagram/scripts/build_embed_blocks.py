@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import Any
 
 try:
     from common import read_yaml, write_json
+    from validate_diagram_manifest import validate_manifest_file
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import read_yaml, write_json
+    from validate_diagram_manifest import validate_manifest_file
 
 
 def source_filename(source_format: str) -> str:
@@ -19,6 +22,8 @@ def source_filename(source_format: str) -> str:
         return "source.dot"
     if source_format == "plantuml":
         return "source.puml"
+    if source_format == "svg":
+        return "source.svg"
     return "source.mmd"
 
 
@@ -86,6 +91,15 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
     visual_svg = diagram_dir / "visual.svg"
     semantic_svg = diagram_dir / "semantic.svg"
     warnings: list[str] = []
+    check_report_path = diagram_dir / "check_report.json"
+    check_status = "missing"
+    if check_report_path.exists():
+        try:
+            check_report = json.loads(check_report_path.read_text(encoding="utf-8"))
+            if isinstance(check_report, dict):
+                check_status = str(check_report.get("status", "unknown"))
+        except (OSError, json.JSONDecodeError):
+            check_status = "invalid"
 
     if visual_svg.exists():
         image_file = "visual.svg"
@@ -114,17 +128,32 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
         "embed": str(diagram_dir / "embed.md"),
         "image": image_file,
         "source": source_file,
+        "check_status": check_status,
         "warnings": warnings,
     }
 
 
 def build_embed_blocks(diagrams_root: Path) -> dict[str, Any]:
+    manifest_path = diagrams_root / "diagram_manifest.yaml"
+    manifest_report = (
+        validate_manifest_file(manifest_path, root=diagrams_root)
+        if manifest_path.exists()
+        else {"status": "failed", "errors": ["missing diagram_manifest.yaml"], "warnings": []}
+    )
+    write_json(diagrams_root / "manifest_report.json", manifest_report)
     entries = _manifest_entries(diagrams_root)
     generated_entries = [entry for entry in entries if entry.get("status") == "generated"]
     diagrams = [build_embed_for_diagram(diagrams_root, entry) for entry in generated_entries]
     warnings = [warning for diagram in diagrams for warning in diagram["warnings"]]
+    failed_diagrams = [
+        diagram["id"] for diagram in diagrams if diagram["check_status"] != "passed"
+    ]
+    if failed_diagrams:
+        warnings.append("diagram quality checks not passed: " + ", ".join(failed_diagrams))
+    pack_failed = bool(failed_diagrams) or manifest_report["status"] != "passed"
     report = {
-        "status": "passed_with_warnings" if warnings else "passed",
+        "status": "failed" if pack_failed else ("passed_with_warnings" if warnings else "passed"),
+        "manifest": manifest_report,
         "diagrams": diagrams,
         "warnings": warnings,
     }

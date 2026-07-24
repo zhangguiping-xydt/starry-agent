@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -11,6 +12,20 @@ from typing import Any
 import yaml
 
 _COLOR_RE = re.compile(r"#[0-9a-fA-F]{6}\b")
+_VIEWBOX_SPLIT_RE = re.compile(r"[\s,]+")
+
+_SEMANTIC_COLLECTION_KINDS = {
+    "nodes": "node",
+    "edges": "edge",
+    "groups": "group",
+    "lanes": "lane",
+    "participants": "participant",
+    "messages": "message",
+    "entities": "entity",
+    "relationships": "relationship",
+    "states": "state",
+    "transitions": "transition",
+}
 
 
 def read_yaml(path: Path) -> dict[str, Any]:
@@ -44,6 +59,41 @@ def required_node_labels(lock: dict[str, Any]) -> list[str]:
             continue
         label = node.get("label")
         if node.get("required") is True and isinstance(label, str):
+            labels.append(label)
+    return labels
+
+
+def semantic_items(lock: dict[str, Any]) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for section, kind in _SEMANTIC_COLLECTION_KINDS.items():
+        values = lock.get(section, [])
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            if not isinstance(value, dict):
+                continue
+            item_id = value.get("id")
+            if not isinstance(item_id, str) or not item_id:
+                continue
+            item: dict[str, str] = {"id": item_id, "kind": kind, "section": section}
+            label = value.get("label")
+            if isinstance(label, str) and label:
+                item["label"] = label
+            source = value.get("from")
+            target = value.get("to")
+            if isinstance(source, str) and source:
+                item["from"] = source
+            if isinstance(target, str) and target:
+                item["to"] = target
+            items.append(item)
+    return items
+
+
+def required_visual_labels(lock: dict[str, Any]) -> list[str]:
+    labels: list[str] = []
+    for item in semantic_items(lock):
+        label = item.get("label")
+        if label and label not in labels:
             labels.append(label)
     return labels
 
@@ -104,6 +154,47 @@ def svg_text_content(root: ET.Element) -> str:
 
 def has_viewbox(root: ET.Element) -> bool:
     return "viewBox" in root.attrib
+
+
+def parse_viewbox(value: str | None) -> tuple[float, float, float, float] | None:
+    if not isinstance(value, str):
+        return None
+    parts = [part for part in _VIEWBOX_SPLIT_RE.split(value.strip()) if part]
+    if len(parts) != 4:
+        return None
+    try:
+        numbers = tuple(float(part) for part in parts)
+    except ValueError:
+        return None
+    if numbers[2] <= 0 or numbers[3] <= 0:
+        return None
+    return numbers
+
+
+def svg_semantic_elements(root: ET.Element) -> dict[str, ET.Element]:
+    elements: dict[str, ET.Element] = {}
+    for element in root.iter():
+        item_id = element.attrib.get("data-diagram-id") or element.attrib.get("id")
+        if isinstance(item_id, str) and item_id:
+            elements.setdefault(item_id, element)
+    return elements
+
+
+def canonical_svg_hash(path: Path) -> str:
+    root = parse_svg(path)
+    for element in root.iter():
+        for attribute in list(element.attrib):
+            if attribute.startswith("data-"):
+                del element.attrib[attribute]
+        sorted_attributes = sorted(element.attrib.items())
+        element.attrib.clear()
+        element.attrib.update(sorted_attributes)
+        if element.text is not None and not element.text.strip():
+            element.text = None
+        if element.tail is not None and not element.tail.strip():
+            element.tail = None
+    payload = ET.tostring(root, encoding="utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def command_available(name: str) -> bool:

@@ -1,8 +1,26 @@
 id: blueprint
-background: "#0b1f3a"
-surface: "#102a4c"
-primary: "#60a5fa"
-accent: "#93c5fd"
-text: "#dbeafe"
-muted: "#93a4b8"
-line: "#3b82f6"
+colors:
+  background: "#0b1f3a"
+  surface: "#102a4c"
+  primary: "#60a5fa"
+  accent: "#93c5fd"
+  text: "#dbeafe"
+  muted: "#93a4b8"
+  line: "#3b82f6"
+typography:
+  font_family: "Noto Sans CJK SC"
+  title_size: 22
+  node_size: 13
+  edge_label_size: 11
+  min_font_size: 10
+geometry:
+  node_padding_x: 18
+  node_padding_y: 12
+  cluster_padding: 24
+  node_gap: 32
+  rank_gap: 56
+  corner_radius: 8
+connectors:
+  width: 1.6
+  arrow_size: 7
+  routing: orthogonal

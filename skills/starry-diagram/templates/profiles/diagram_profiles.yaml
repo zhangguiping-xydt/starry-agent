@@ -1,0 +1,90 @@
+version: 1
+enhancement_levels:
+  light: 1
+  medium: 2
+  strong: 3
+profiles:
+  architecture:
+    preferred_source_formats: [graphviz]
+    allowed_source_formats: [graphviz]
+    minimum_enhancement: strong
+    required_sections: [nodes, edges, groups]
+    non_empty_sections: [nodes, edges]
+    visual_identity: strict
+  business-architecture:
+    preferred_source_formats: [graphviz, mermaid]
+    allowed_source_formats: [graphviz, mermaid]
+    minimum_enhancement: strong
+    required_sections: [nodes, edges, groups]
+    non_empty_sections: [nodes, edges]
+    visual_identity: strict
+  component:
+    preferred_source_formats: [graphviz]
+    allowed_source_formats: [graphviz]
+    minimum_enhancement: strong
+    required_sections: [nodes, edges, groups]
+    non_empty_sections: [nodes, edges]
+    visual_identity: strict
+  concept:
+    preferred_source_formats: [svg]
+    allowed_source_formats: [svg]
+    minimum_enhancement: strong
+    required_sections: [nodes, edges, groups]
+    non_empty_sections: [nodes, edges]
+    visual_identity: strict
+  data-flow:
+    preferred_source_formats: [graphviz, mermaid]
+    allowed_source_formats: [graphviz, mermaid]
+    minimum_enhancement: strong
+    required_sections: [nodes, edges, groups]
+    non_empty_sections: [nodes, edges]
+    visual_identity: strict
+  deployment:
+    preferred_source_formats: [plantuml, graphviz]
+    allowed_source_formats: [plantuml, graphviz]
+    minimum_enhancement: strong
+    required_sections: [nodes, edges, groups]
+    non_empty_sections: [nodes]
+    visual_identity: strict
+  er:
+    preferred_source_formats: [mermaid, plantuml]
+    allowed_source_formats: [mermaid, plantuml]
+    minimum_enhancement: light
+    required_sections: [entities, relationships]
+    non_empty_sections: [entities, relationships]
+    visual_identity: strict
+  event-flow:
+    preferred_source_formats: [mermaid, graphviz]
+    allowed_source_formats: [mermaid, graphviz]
+    minimum_enhancement: strong
+    required_sections: [nodes, edges, groups]
+    non_empty_sections: [nodes, edges]
+    visual_identity: strict
+  flow:
+    preferred_source_formats: [mermaid]
+    allowed_source_formats: [mermaid, graphviz]
+    minimum_enhancement: medium
+    required_sections: [nodes, edges]
+    non_empty_sections: [nodes, edges]
+    visual_identity: strict
+  sequence:
+    preferred_source_formats: [plantuml, mermaid]
+    allowed_source_formats: [plantuml, mermaid]
+    minimum_enhancement: light
+    required_sections: [participants, messages]
+    non_empty_sections: [participants, messages]
+    visual_identity: strict
+  state:
+    preferred_source_formats: [mermaid]
+    allowed_source_formats: [mermaid, plantuml]
+    minimum_enhancement: light
+    required_sections: [states, transitions]
+    non_empty_sections: [states, transitions]
+    visual_identity: strict
+  swimlane:
+    preferred_source_formats: [plantuml]
+    allowed_source_formats: [plantuml, graphviz]
+    minimum_enhancement: medium
+    required_sections: [lanes, nodes, edges]
+    non_empty_sections: [lanes, nodes, edges]
+    visual_identity: strict

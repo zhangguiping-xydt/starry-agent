@@ -1,8 +1,26 @@
 id: product-soft
-background: "#fff7ed"
-surface: "#ffffff"
-primary: "#f97316"
-accent: "#22c55e"
-text: "#1f2937"
-muted: "#78716c"
-line: "#fed7aa"
+colors:
+  background: "#fff7ed"
+  surface: "#ffffff"
+  primary: "#f97316"
+  accent: "#22c55e"
+  text: "#1f2937"
+  muted: "#78716c"
+  line: "#fed7aa"
+typography:
+  font_family: "Noto Sans CJK SC"
+  title_size: 22
+  node_size: 13
+  edge_label_size: 11
+  min_font_size: 10
+geometry:
+  node_padding_x: 18
+  node_padding_y: 12
+  cluster_padding: 24
+  node_gap: 32
+  rank_gap: 56
+  corner_radius: 8
+connectors:
+  width: 1.6
+  arrow_size: 7
+  routing: orthogonal

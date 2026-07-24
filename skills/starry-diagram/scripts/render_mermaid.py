@@ -29,6 +29,7 @@ def render_mermaid(source: Path, output: Path, report: Path | None = None) -> di
         _write_report(report, result)
         return result
 
+    output.parent.mkdir(parents=True, exist_ok=True)
     process = run_command(["mmdc", "-i", str(source), "-o", str(output)])
     result = {
         "status": "passed" if process.returncode == 0 else "failed",
@@ -51,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     result = render_mermaid(args.source, args.output, args.report)
-    return 1 if result["status"] == "failed" else 0
+    return 0 if result["status"] == "passed" else 1
 
 
 if __name__ == "__main__":

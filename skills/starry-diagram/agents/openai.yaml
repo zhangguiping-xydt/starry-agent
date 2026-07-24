@@ -1,0 +1,4 @@
+interface:
+  display_name: "Starry Diagram"
+  short_description: "面向架构、流程、时序等技术图的类型化生成与语义质量校验"
+  default_prompt: "Use $starry-diagram to create a technically precise diagram pack with executable semantic and visual quality gates."

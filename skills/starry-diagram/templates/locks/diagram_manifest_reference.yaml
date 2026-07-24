@@ -16,6 +16,8 @@ diagrams:
     source_refs:
       - architecture-notes.md#runtime
     style_id: clean-technical
+    source_format: graphviz
+    enhancement_level: strong
     output_dir: architecture-overview
   - id: domain-er
     title: 领域实体关系

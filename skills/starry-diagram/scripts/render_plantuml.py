@@ -55,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     result = render_plantuml(args.source, args.output, args.report)
-    return 1 if result["status"] == "failed" else 0
+    return 0 if result["status"] == "passed" else 1
 
 
 if __name__ == "__main__":

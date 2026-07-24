@@ -1,26 +1,62 @@
 # Quality Gate
 
-Validate every pack and diagram before handoff.
+Run every gate before handoff. A report written by the agent is not proof; generate reports with the bundled scripts.
 
-## Checks
+## Gate order
 
-- Manifest schema: `project`, `mode`, `source_summary`, and `diagrams` exist; each diagram has id, type, status, and reason.
-- Lock schema: `id`, `title`, `type`, `source_format`, `visual_style`, `canvas`, `nodes`, `edges`, `groups`, and `style_tokens` exist where required.
-- Semantic source matches lock: all required nodes, participants, entities, states, messages, edges, fields, and labels are present; no unlisted semantics are introduced.
-- Cross-diagram naming: the same entity uses the same canonical label/id from the manifest `naming_glossary` across all generated diagrams.
-- Missing facts: every `needs_clarification` entry includes a non-empty `missing` list; fact-insufficient `skipped` entries should also name the missing facts.
-- Edge semantics: complex interaction, event-flow, and data-flow diagrams do not mix command/event/data/projection meanings ambiguously; edge kinds must come from the lock (`command`, `event`, `data`, `projection`, or `call`).
-- Renderer output/render_unavailable: either `semantic.svg` exists and is well formed, or `render_unavailable` records why rendering could not run.
-- Visual SVG: XML parses, viewBox exists, labels match lock, colors come from style tokens, and semantic structure is unchanged.
-- Reports: write per-diagram `check_report.json` and pack-level `diagram_pack_report.json`.
+1. `validate_diagram_manifest.py diagram_manifest.yaml --root <pack-root>`
+2. `validate_diagram_lock.py diagram_lock.yaml`
+3. `validate_semantic_source.py diagram_lock.yaml source.*`
+4. Render semantic.svg and write render_report.json.
+5. Create visual.svg after the semantic gate passes.
+6. `validate_visual_svg.py diagram_lock.yaml visual.svg --semantic-svg semantic.svg`
+7. `build_check_report.py <diagram-directory>`
+8. `build_embed_blocks.py <pack-root>` only after every generated diagram passes.
+
+## Lock checks
+
+- Diagram type exists in `diagram_profiles.yaml`.
+- Source format is allowed by the type profile.
+- A non-preferred renderer has a source-grounded `renderer_reason`.
+- Enhancement level meets the type minimum.
+- Type-specific semantic sections exist and are internally valid.
+- Fixed canvas dimensions and viewBox agree; auto canvas bounds are valid.
+- Technical style defines required colors, font family, and minimum font size.
+
+## Manifest checks
+
+- Required pack metadata and diagram entries exist.
+- Diagram ids are unique and statuses are valid.
+- Generated entries declare renderer and enhancement level allowed by their type profile.
+- Skipped and needs_clarification entries name the missing facts.
+- Generated entry id, type, renderer, style, and enhancement level match diagram_lock.yaml.
+
+## Semantic checks
+
+- Every locked semantic item has a stable source identity.
+- Every locked label is present.
+- Endpoints and memberships reference existing semantic ids.
+- Sequence order, ER fields/keys/cardinalities, state transitions, and swimlane ownership pass their type rules.
+
+## Visual checks
+
+- SVG parses and its canvas follows the lock.
+- Required labels remain visible.
+- Colors and fonts come from style_tokens.
+- No text falls below the locked minimum font size.
+- Every semantic id is present exactly once through stable metadata or a supported renderer id.
+- Edge endpoints and group/lane memberships match the lock.
+- No unlisted semantic identity is introduced.
+- Medium and strong enhancement are not geometry-identical to semantic.svg.
 
 ## Failure handling
 
 | Failure | Handling |
 | --- | --- |
 | Missing source facts | Mark skipped or needs_clarification in manifest |
-| Invalid lock | Stop diagram generation and report schema errors |
-| Semantic mismatch | Fail semantic gate; do not run visual track |
-| Renderer unavailable | Write `render_unavailable` and continue report generation |
-| Visual semantic drift | Write `visual_failed`; keep semantic artifacts |
-| Embed unavailable | Report failure and point to semantic or visual fallback |
+| Invalid profile, routing, or lock | Stop before semantic source generation |
+| Semantic mismatch | Fail semantic gate; do not render |
+| Renderer unavailable | Write render_unavailable and a failed check report |
+| Visual semantic drift | Write visual_failed; keep semantic artifacts |
+| Visual no-op at medium/strong | Fail visual gate and perform the required visual work |
+| Pack contains a failed diagram | Fail diagram_pack_report; do not present the pack as passed |

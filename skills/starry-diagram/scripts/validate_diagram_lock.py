@@ -26,6 +26,7 @@ _REQUIRED_TOP_LEVEL_KEYS = (
     "visual_style",
     "layout_plan",
     "canvas",
+    "delivery_target",
     "style_tokens",
 )
 _EDGE_KINDS = {"command", "event", "data", "projection", "call"}
@@ -35,6 +36,15 @@ _DENSITIES = {"sparse", "balanced", "dense"}
 _VIEW_ROLES = {"standalone", "overview", "detail"}
 _REGION_PLACEMENTS = {"top", "bottom", "left", "right", "center", "background", "lanes"}
 _EDGE_ROLES = ("primary", "secondary", "control")
+_TYPOGRAPHY_ROLES = (
+    "diagram_title_size",
+    "group_title_size",
+    "node_title_size",
+    "node_body_size",
+    "edge_label_size",
+    "annotation_size",
+    "min_font_size",
+)
 
 
 def _is_number(value: Any) -> bool:
@@ -185,6 +195,38 @@ def _validate_canvas(canvas: Any, errors: list[str], warnings: list[str]) -> Non
             errors.append("canvas.margin must be a non-negative number")
 
 
+def _validate_delivery_target(target: Any, errors: list[str]) -> None:
+    if not isinstance(target, Mapping):
+        errors.append("delivery_target must be a mapping")
+        return
+    width = target.get("width_px")
+    if not _is_int(width) or width <= 0:
+        errors.append("delivery_target.width_px must be a positive int")
+    height = target.get("height_px")
+    if height is not None and (not _is_int(height) or height <= 0):
+        errors.append("delivery_target.height_px must be a positive int when provided")
+    if target.get("fit") != "contain":
+        errors.append("delivery_target.fit must be contain")
+
+    minimum_effective = target.get("min_effective_font_px")
+    if not _is_number(minimum_effective) or minimum_effective < 12:
+        errors.append("delivery_target.min_effective_font_px must be at least 12")
+    contrast = target.get("min_contrast_ratio")
+    if not _is_number(contrast) or not 1 <= contrast <= 21:
+        errors.append("delivery_target.min_contrast_ratio must be between 1 and 21")
+    padding = target.get("min_text_padding_px")
+    if not _is_number(padding) or padding < 0:
+        errors.append("delivery_target.min_text_padding_px must be a non-negative number")
+    label_distance = target.get("max_edge_label_distance_px")
+    if not _is_number(label_distance) or label_distance <= 0:
+        errors.append("delivery_target.max_edge_label_distance_px must be a positive number")
+    unmeasurable = target.get("max_unmeasurable_text_fraction")
+    if not _is_number(unmeasurable) or not 0 <= unmeasurable <= 0.2:
+        errors.append(
+            "delivery_target.max_unmeasurable_text_fraction must be between 0 and 0.2"
+        )
+
+
 def _validate_visual_style(
     visual_style: Any,
     profile: dict[str, Any],
@@ -226,21 +268,25 @@ def _validate_style_tokens(style_tokens: Any, errors: list[str]) -> None:
         if not isinstance(typography.get("font_family"), str) or not typography["font_family"]:
             errors.append("style_tokens.typography.font_family must be defined")
         sizes: dict[str, float] = {}
-        for role in ("title_size", "node_size", "edge_label_size", "min_font_size"):
+        for role in _TYPOGRAPHY_ROLES:
             value = typography.get(role)
             if not _is_number(value) or value <= 0:
                 errors.append(f"style_tokens.typography.{role} must be a positive number")
             else:
                 sizes[role] = float(value)
-        if len(sizes) == 4 and not (
-            sizes["title_size"]
-            >= sizes["node_size"]
+        if len(sizes) == len(_TYPOGRAPHY_ROLES) and not (
+            sizes["diagram_title_size"]
+            >= sizes["group_title_size"]
+            >= sizes["node_title_size"]
+            >= sizes["node_body_size"]
             >= sizes["edge_label_size"]
+            >= sizes["annotation_size"]
             >= sizes["min_font_size"]
         ):
             errors.append(
                 "style_tokens typography sizes must satisfy "
-                "title_size >= node_size >= edge_label_size >= min_font_size"
+                "diagram_title_size >= group_title_size >= node_title_size >= "
+                "node_body_size >= edge_label_size >= annotation_size >= min_font_size"
             )
 
 
@@ -291,6 +337,9 @@ def _validate_layout_plan(
                 f"non-preferred layout pattern {pattern!r} requires layout_plan.reason"
             )
 
+    if not _non_empty_text(plan.get("selection_reason")):
+        errors.append("layout_plan.selection_reason must be a source-grounded non-empty string")
+
     direction = plan.get("direction")
     directions = layout.get("directions", []) if isinstance(layout, Mapping) else []
     if not isinstance(direction, str) or direction not in directions:
@@ -301,6 +350,8 @@ def _validate_layout_plan(
         errors.append(f"layout_plan.density must be one of {sorted(_DENSITIES)}")
     if plan.get("view_role") not in _VIEW_ROLES:
         errors.append(f"layout_plan.view_role must be one of {sorted(_VIEW_ROLES)}")
+    if plan.get("density") == "dense" and plan.get("view_role") == "overview":
+        errors.append("layout_plan density dense is incompatible with view_role overview")
 
     items = semantic_items(lock)
     edge_ids = {
@@ -553,6 +604,7 @@ def validate_lock(
             errors.append(f"semantic section {section} must be a non-empty list")
 
     _validate_canvas(lock.get("canvas"), errors, warnings)
+    _validate_delivery_target(lock.get("delivery_target"), errors)
     _validate_visual_style(lock.get("visual_style"), profile, profiles_data, errors)
     _validate_style_tokens(lock.get("style_tokens"), errors)
     if isinstance(diagram_type, str):

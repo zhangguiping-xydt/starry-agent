@@ -11,7 +11,7 @@ Create trustworthy diagram packs from source material. The semantic source is tr
 
 ## Mandatory Pipeline
 
-Source intake → Diagram Strategist → layout-pattern and complexity gate → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → Semantic track before visual track → Semantic quality gate → Visual track → geometry-aware visual quality gate → `embed.md` and reports.
+Source intake → Diagram Strategist → type/layout selection and complexity gate → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → Semantic quality gate → Visual track → geometry/legibility quality gate → target-size preview → technical visual review and revision loop → `embed.md` and reports.
 
 Execute every gate with the bundled scripts. A written claim that a gate passed is not sufficient.
 
@@ -25,7 +25,7 @@ Do not invent services, roles, fields, relationships, states, calls, events, or 
 
 ## Type profile gate
 
-Before creating a generated entry, read `templates/profiles/diagram_profiles.yaml`, `templates/layouts/technical_layouts.yaml`, and the selected `references/diagram-types/<type>.md`. Treat the type profile and selected layout pattern as executable contracts for semantic sections, renderers, composition, complexity limits, routing quality, and enhancement level. Record `layout_pattern` in the manifest and a complete `layout_plan` in the lock. When using an allowed but non-preferred renderer or layout, record a source-grounded reason.
+Before creating a generated entry, read `templates/profiles/diagram_profiles.yaml`, `templates/layouts/technical_layouts.yaml`, and the selected `references/diagram-types/<type>.md`. Evaluate every candidate's `pick_when`, `skip_when`, and `alternatives`; do not choose from positive keyword matches alone. Treat the type profile and selected layout pattern as executable contracts for semantic sections, renderers, composition, complexity limits, routing quality, and enhancement level. Record `layout_pattern` in the manifest and a complete `layout_plan.selection_reason` in the lock. When using an allowed but non-preferred renderer or layout, also record a source-grounded fallback reason.
 
 If a candidate exceeds the selected layout pattern's section or total-item limits, split it into overview/detail or separate concern diagrams before creating the lock. Only an explicit user-approved `layout_plan.complexity_exception` may keep an over-budget single diagram.
 
@@ -33,7 +33,13 @@ Run `python scripts/validate_diagram_manifest.py <diagram_manifest.yaml> --root 
 
 ## Required Artifacts
 
-Each generated diagram directory must contain `diagram_spec.md`, `diagram_lock.yaml`, `source.*`, `semantic.svg` or `render_unavailable`, `visual.svg` or `visual_failed`, `embed.md`, and `check_report.json`. The pack root must contain `diagram_manifest.yaml` and `diagram_pack_report.json`. Diagrams marked `skipped` or `needs_clarification` only require a manifest entry; do not create semantic source, SVG files, or a diagram directory for them unless the user explicitly asks for a diagnostic directory.
+Each generated diagram directory must contain `diagram_spec.md`, `diagram_lock.yaml`, `source.*`, `semantic.svg` or `render_unavailable`, `visual.svg` or `visual_failed`, `preview.png`, `preview_review.yaml`, `embed.md`, and `check_report.json`. The pack root must contain `diagram_manifest.yaml` and `diagram_pack_report.json`. Diagrams marked `skipped` or `needs_clarification` only require a manifest entry; do not create semantic source, SVG files, or a diagram directory for them unless the user explicitly asks for a diagnostic directory.
+
+## Delivery and typography lock
+
+Lock the real embedding viewport before layout. Read `references/delivery-and-legibility.md`, define `delivery_target`, and copy a complete role-based typography scale from the selected style. Judge font size, padding, label anchoring, and contrast after scaling the SVG into that viewport.
+
+Treat typography as geometry. Keep each role size stable. When text does not fit, expand the node, reflow its lines, recompute neighboring geometry, and reroute downstream edges. Never shrink a role, enlarge the canvas, or hide text to pass the gate.
 
 ## Semantic track before visual track
 
@@ -51,12 +57,19 @@ Every semantic visual group must declare `data-diagram-id` and `data-diagram-kin
 
 For medium and strong enhancement, visual.svg must contain a real geometric or typographic improvement. Copying semantic.svg or changing metadata only is a failed visual stage.
 
-Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. Keep loopbacks and control links on outer rails or shared buses. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unsupported geometry coverage, overlong routes, and undersized edge labels.
+Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. Keep loopbacks and control links on outer rails or shared buses. Put `data-text-role` on every visible `<text>`. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unsupported geometry coverage, overlong routes, node/text collisions, text overflow, role-size drift, low effective delivery size, weak contrast, and ambiguous edge-label anchoring.
 
 Run:
 
 ```bash
 python scripts/validate_visual_svg.py diagram_lock.yaml visual.svg --semantic-svg semantic.svg
+python scripts/render_preview.py diagram_lock.yaml visual.svg preview.png --report preview_render_report.json
+```
+
+Open `preview.png` at 100% with an image-viewing tool and follow `references/technical-visual-review.md`. Revise and rerender until every technical review check passes, bind `preview_review.yaml` to the current PNG hash, then run:
+
+```bash
+python scripts/validate_preview_review.py preview.png preview_review.yaml --visual-svg visual.svg
 python scripts/build_check_report.py <diagram-directory>
 ```
 
@@ -69,6 +82,8 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - `references/diagram-types/<type>.md` for the selected diagram type.
 - `references/strategist.md` for diagram pack planning and locks.
 - `references/layout-planning.md` for the layout-plan schema and construction order.
+- `references/delivery-and-legibility.md` for delivery viewport, typography roles, and text geometry.
+- `references/technical-visual-review.md` for the mandatory target-size review and revision loop.
 - `references/semantic-executor.md` for Mermaid/PlantUML/Graphviz/source routing.
 - `references/visual-executor.md` for allowed visual enhancement.
 - `references/quality-gate.md` for validation and failure handling.
@@ -83,6 +98,10 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Treating a technical diagram as a slide or infographic.
 - Selecting a layout after SVG generation instead of before the lock.
 - Keeping an over-budget diagram on one canvas by shrinking text or expanding the canvas.
+- Judging readability from the SVG source size instead of the locked delivery viewport.
+- Omitting `data-text-role`, shrinking one label independently, or allowing text to overflow its node.
+- Treating `preview.png` as optional or hand-authoring a preview pass report.
+- Reviewing a zoomed SVG instead of the target-size PNG or leaving a stale preview-review hash.
 - Leaving semantic items out of `primary_items`/regions or edges out of `edge_roles`.
 - Routing control links repeatedly across the primary flow instead of using a side rail or companion view.
 - Using a renderer or enhancement level that violates the selected type profile.

@@ -1,6 +1,6 @@
 # Layout Planning
 
-Select a technical composition before writing semantic source or visual SVG. Read `../templates/layouts/technical_layouts.yaml`, evaluate every layout pattern allowed by the selected type profile, and record the selected pattern in both the manifest and lock.
+Select a technical composition before writing semantic source or visual SVG. Read `../templates/layouts/technical_layouts.yaml`, evaluate every allowed pattern's `pick_when`, `skip_when`, and `alternatives`, and record the selected pattern in both the manifest and lock. A positive keyword match is insufficient when a skip condition applies.
 
 ## Layout plan contract
 
@@ -9,6 +9,7 @@ Every generated `diagram_lock.yaml` contains:
 ```yaml
 layout_plan:
   pattern: branching-flow
+  selection_reason: "The source has one happy path, two explicit decisions, and converging exception routes."
   direction: left-to-right
   density: balanced
   view_role: standalone
@@ -24,6 +25,16 @@ layout_plan:
 ```
 
 Allowed density values are `sparse`, `balanced`, and `dense`. Allowed view roles are `standalone`, `overview`, and `detail`. Region placement is one of `top`, `bottom`, `left`, `right`, `center`, `background`, or `lanes`.
+
+`selection_reason` must cite source-grounded structure that satisfies the selected pattern and explain why the nearest alternative is not primary. For a non-preferred pattern, also provide `layout_plan.reason` describing why the preferred renderer/layout cannot express the source cleanly.
+
+Apply density as an execution rule:
+
+- `sparse`: emphasize one mechanism or short primary path; expand whitespace and do not add supporting regions merely to fill the canvas.
+- `balanced`: use the style's locked gaps and keep primary and secondary information visibly distinct.
+- `dense`: use only for a detail or standalone view whose item count remains within budget; preserve every typography role and gap floor. `dense` is invalid for an overview.
+
+`view_role: overview` prioritizes topology and major boundaries; move operational labels or exception detail to companion views. `view_role: detail` may carry more annotations but cannot shrink typography or bypass complexity limits.
 
 `primary_items` establishes visual hierarchy; it does not add or reorder semantics. Every edge-like semantic id must appear exactly once in `edge_roles.primary`, `edge_roles.secondary`, or `edge_roles.control`. Region members must reference existing non-edge semantic ids and may appear in at most one region.
 

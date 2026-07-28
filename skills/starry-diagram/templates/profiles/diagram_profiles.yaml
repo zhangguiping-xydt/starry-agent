@@ -1,10 +1,19 @@
-version: 1
+version: 2
 enhancement_levels:
   light: 1
   medium: 2
   strong: 3
 profiles:
   architecture:
+    pick_when:
+      - Stable components, services, stores, or runtime boundaries are the primary reading task.
+      - The source contains structural dependencies or containment that remain meaningful without message order.
+    skip_when:
+      - Ordered calls, retries, or asynchronous message chronology are the primary story.
+      - Physical environments and network placement are more important than logical structure.
+    alternatives:
+      - Use sequence for ordered interactions and deployment for physical runtime placement.
+      - Use component when package-level dependencies are the complete scope.
     preferred_source_formats: [graphviz]
     allowed_source_formats: [graphviz]
     preferred_layout_patterns: [layered-system, bounded-context-map]
@@ -14,6 +23,14 @@ profiles:
     non_empty_sections: [nodes, edges]
     visual_identity: strict
   business-architecture:
+    pick_when:
+      - Business domains, capabilities, ownership, or value stages are explicitly named.
+      - The reading task is organizational or capability structure rather than runtime behavior.
+    skip_when:
+      - The source only describes implementation services or an operational procedure.
+      - Capability names or ownership boundaries are inferred rather than stated.
+    alternatives:
+      - Use architecture for runtime structure and flow for an ordered business procedure.
     preferred_source_formats: [graphviz, mermaid]
     allowed_source_formats: [graphviz, mermaid]
     preferred_layout_patterns: [capability-map, value-stream, bounded-context-map]
@@ -23,6 +40,14 @@ profiles:
     non_empty_sections: [nodes, edges]
     visual_identity: strict
   component:
+    pick_when:
+      - Modules, packages, libraries, or deployable components and their dependencies are explicit.
+      - The scope is narrower than a system architecture and dependency direction matters.
+    skip_when:
+      - Runtime tiers, business capabilities, or deployment zones are the primary reading task.
+      - The source lacks explicit component boundaries or dependencies.
+    alternatives:
+      - Use architecture for system-wide structure and deployment for physical placement.
     preferred_source_formats: [graphviz]
     allowed_source_formats: [graphviz]
     preferred_layout_patterns: [dependency-map, layered-system]
@@ -32,6 +57,14 @@ profiles:
     non_empty_sections: [nodes, edges]
     visual_identity: strict
   concept:
+    pick_when:
+      - The source explicitly defines a mechanism, feedback loop, flywheel, or abstract relationship.
+      - Precise technical notation is less important than explaining the named mechanism.
+    skip_when:
+      - The source provides executable process steps, ordered messages, or lifecycle states.
+      - A loop or mechanism would need invented stages to become visually complete.
+    alternatives:
+      - Use flow for operational steps, sequence for interactions, and state for lifecycle behavior.
     preferred_source_formats: [svg]
     allowed_source_formats: [svg]
     preferred_layout_patterns: [loop-mechanism, capability-map]
@@ -41,6 +74,14 @@ profiles:
     non_empty_sections: [nodes, edges]
     visual_identity: strict
   data-flow:
+    pick_when:
+      - Collection, transformation, persistence, synchronization, or consumption of data is primary.
+      - Data direction and processing stages remain meaningful without chronological message order.
+    skip_when:
+      - Events as facts, commands, or participant chronology are the primary semantics.
+      - The source does not identify data movement or transformation.
+    alternatives:
+      - Use event-flow for publish/subscribe facts and sequence for ordered calls.
     preferred_source_formats: [graphviz, mermaid]
     allowed_source_formats: [graphviz, mermaid]
     preferred_layout_patterns: [data-pipeline, data-hub]
@@ -50,6 +91,14 @@ profiles:
     non_empty_sections: [nodes, edges]
     visual_identity: strict
   deployment:
+    pick_when:
+      - Environments, zones, hosts, containers, networks, or trust boundaries are explicit.
+      - Physical or runtime placement is the primary reading task.
+    skip_when:
+      - The source only defines logical services or package dependencies.
+      - Placement would require inventing infrastructure not present in the source.
+    alternatives:
+      - Use architecture for logical runtime structure and component for package dependencies.
     preferred_source_formats: [plantuml, graphviz]
     allowed_source_formats: [plantuml, graphviz]
     preferred_layout_patterns: [deployment-zones]
@@ -59,6 +108,14 @@ profiles:
     non_empty_sections: [nodes]
     visual_identity: strict
   er:
+    pick_when:
+      - Entities, fields, keys, and relationship cardinalities are explicit.
+      - Data structure and integrity constraints are the primary reading task.
+    skip_when:
+      - Fields, primary keys, or cardinalities are missing.
+      - The source describes data movement rather than persisted relationships.
+    alternatives:
+      - Use data-flow for movement and mark needs_clarification when schema facts are missing.
     preferred_source_formats: [mermaid, plantuml]
     allowed_source_formats: [mermaid, plantuml]
     preferred_layout_patterns: [er-domain-grid]
@@ -68,6 +125,14 @@ profiles:
     non_empty_sections: [entities, relationships]
     visual_identity: strict
   event-flow:
+    pick_when:
+      - Producers, named events, topics, subscribers, or projections are explicit.
+      - Facts emitted after state changes and asynchronous reactions are primary.
+    skip_when:
+      - The source describes payload transformation or synchronous request chronology instead.
+      - Event names or subscribers would need to be inferred.
+    alternatives:
+      - Use data-flow for transformation pipelines and sequence for ordered interactions.
     preferred_source_formats: [mermaid, graphviz]
     allowed_source_formats: [mermaid, graphviz]
     preferred_layout_patterns: [event-bus]
@@ -77,6 +142,14 @@ profiles:
     non_empty_sections: [nodes, edges]
     visual_identity: strict
   flow:
+    pick_when:
+      - Ordered steps, decisions, approvals, retries, or exception paths are explicit.
+      - The reading task is how work progresses rather than who exchanges messages over time.
+    skip_when:
+      - Multiple stable participants and chronological messages are the primary semantics.
+      - Lifecycle states matter independently of the procedure that reaches them.
+    alternatives:
+      - Use sequence for participant chronology, swimlane for ownership handoffs, and state for lifecycle topology.
     preferred_source_formats: [mermaid]
     allowed_source_formats: [mermaid, graphviz]
     preferred_layout_patterns: [linear-flow, branching-flow, control-sidecar-flow]
@@ -86,6 +159,14 @@ profiles:
     non_empty_sections: [nodes, edges]
     visual_identity: strict
   sequence:
+    pick_when:
+      - Stable participants exchange explicitly ordered calls, messages, events, or responses.
+      - Message order, sync/async behavior, or activation is the primary reading task.
+    skip_when:
+      - The source only provides process steps without stable message participants.
+      - Structural dependencies or data transformation stages are more important than chronology.
+    alternatives:
+      - Use flow for procedures, architecture for structure, and data-flow for transformation.
     preferred_source_formats: [plantuml, mermaid]
     allowed_source_formats: [plantuml, mermaid]
     preferred_layout_patterns: [sequence-lifelines]
@@ -95,6 +176,14 @@ profiles:
     non_empty_sections: [participants, messages]
     visual_identity: strict
   state:
+    pick_when:
+      - Named lifecycle states and permitted transitions are explicit.
+      - State topology, guards, or terminal conditions are primary.
+    skip_when:
+      - The source only lists procedural steps or status labels without transitions.
+      - Participant message order is the primary story.
+    alternatives:
+      - Use flow for procedures and sequence for participant interactions.
     preferred_source_formats: [mermaid]
     allowed_source_formats: [mermaid, plantuml]
     preferred_layout_patterns: [state-transition]
@@ -104,6 +193,14 @@ profiles:
     non_empty_sections: [states, transitions]
     visual_identity: strict
   swimlane:
+    pick_when:
+      - Activities have explicit owners and cross-role or cross-system handoffs matter.
+      - Responsibility boundaries are as important as process order.
+    skip_when:
+      - Ownership is absent, inferred, or irrelevant to understanding the process.
+      - Ordered messages between technical participants are better expressed chronologically.
+    alternatives:
+      - Use flow when ownership is secondary and sequence when messages are primary.
     preferred_source_formats: [plantuml]
     allowed_source_formats: [plantuml, graphviz]
     preferred_layout_patterns: [swimlane-flow]

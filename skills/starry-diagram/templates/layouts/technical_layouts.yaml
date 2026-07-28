@@ -1,9 +1,15 @@
-version: 1
+version: 2
 patterns:
   layered-system:
     summary: Stack technical layers or runtime tiers with dependencies flowing in one direction.
     supports: [architecture, component, deployment, concept]
     directions: [top-to-bottom, left-to-right]
+    pick_when:
+      - Three to six explicit tiers or layers organize most nodes and dependencies flow predominantly in one direction.
+    skip_when:
+      - Peer-to-peer dependencies, ownership boundaries, or physical zones dominate the structure.
+    alternatives:
+      - Use dependency-map for peer dependencies, bounded-context-map for ownership, or deployment-zones for physical nesting.
     section_limits: {nodes: 20, edges: 28, groups: 6}
     max_total_items: 50
     quality_limits:
@@ -19,6 +25,12 @@ patterns:
     summary: Show domain or runtime boundaries with a small number of labeled cross-boundary relationships.
     supports: [architecture, business-architecture, component]
     directions: [left-to-right, top-to-bottom]
+    pick_when:
+      - Domain, ownership, trust, or runtime boundaries are explicit and cross-boundary relationships are limited.
+    skip_when:
+      - Cross-boundary links dominate internal structure or no source-grounded boundaries exist.
+    alternatives:
+      - Use layered-system for tiers or dependency-map for connector-centric structure.
     section_limits: {nodes: 18, edges: 22, groups: 8}
     max_total_items: 48
     quality_limits:
@@ -34,6 +46,12 @@ patterns:
     summary: Show components or packages and their directed dependency graph.
     supports: [architecture, component]
     directions: [left-to-right, top-to-bottom]
+    pick_when:
+      - Directed module or component dependencies are primary and can be ranked by dependency depth.
+    skip_when:
+      - Containment, chronological messages, or business stages are the primary reading task.
+    alternatives:
+      - Use layered-system for tiers, bounded-context-map for ownership, or sequence-lifelines for chronology.
     section_limits: {nodes: 18, edges: 26, groups: 6}
     max_total_items: 48
     quality_limits:
@@ -49,6 +67,12 @@ patterns:
     summary: Nest environments, zones, hosts, containers, and deployed components.
     supports: [deployment, architecture]
     directions: [top-to-bottom, left-to-right]
+    pick_when:
+      - Environments, zones, hosts, containers, or trust boundaries form explicit nested placement.
+    skip_when:
+      - The source only provides logical services without physical or runtime placement.
+    alternatives:
+      - Use layered-system when runtime tiers matter more than physical nesting.
     section_limits: {nodes: 20, edges: 24, groups: 8}
     max_total_items: 52
     quality_limits:
@@ -64,6 +88,12 @@ patterns:
     summary: Arrange business capabilities or domains as a balanced hierarchy or matrix.
     supports: [business-architecture, concept]
     directions: [top-to-bottom, matrix]
+    pick_when:
+      - Capabilities or conceptual domains form an explicit hierarchy or peer matrix with few relationships.
+    skip_when:
+      - Ordered stages or connector-heavy interactions are the primary story.
+    alternatives:
+      - Use value-stream for ordered business stages or bounded-context-map for ownership relationships.
     section_limits: {nodes: 24, edges: 12, groups: 8}
     max_total_items: 50
     quality_limits:
@@ -79,6 +109,12 @@ patterns:
     summary: Show business stages and the capabilities or roles contributing to each stage.
     supports: [business-architecture, flow]
     directions: [left-to-right]
+    pick_when:
+      - Three to eight ordered value stages are explicit and supporting roles or capabilities map cleanly to stages.
+    skip_when:
+      - Decisions, retries, or technical message chronology dominate the process.
+    alternatives:
+      - Use branching-flow for decisions or sequence-lifelines for chronological messages.
     section_limits: {nodes: 16, edges: 18, groups: 6}
     max_total_items: 40
     quality_limits:
@@ -94,6 +130,12 @@ patterns:
     summary: Show three to eight ordered steps with at most one minor branch.
     supports: [flow]
     directions: [left-to-right, top-to-bottom]
+    pick_when:
+      - Three to eight ordered steps form one dominant path with at most one minor branch.
+    skip_when:
+      - Multiple substantial branches, explicit ownership lanes, or a feedback loop are required.
+    alternatives:
+      - Use branching-flow for decisions, swimlane-flow for ownership, or loop-mechanism for a small explicit loop.
     section_limits: {nodes: 8, edges: 10, groups: 3}
     max_total_items: 21
     quality_limits:
@@ -109,6 +151,12 @@ patterns:
     summary: Show a primary process with decisions, exception branches, and explicit convergence.
     supports: [flow, state]
     directions: [left-to-right, top-to-bottom]
+    pick_when:
+      - Decisions, exception paths, retries, and convergence are explicit around one primary path.
+    skip_when:
+      - The process is linear, ownership lanes are primary, or lifecycle states are the actual subject.
+    alternatives:
+      - Use linear-flow for one path, swimlane-flow for responsibility, or state-transition for lifecycle topology.
     section_limits: {nodes: 14, edges: 18, groups: 4}
     max_total_items: 36
     quality_limits:
@@ -124,6 +172,12 @@ patterns:
     summary: Show a primary flow plus a separate state, policy, evidence, or control plane.
     supports: [flow, data-flow, event-flow, concept]
     directions: [left-to-right, top-to-bottom]
+    pick_when:
+      - A primary flow is explicitly constrained by a separate policy, evidence, state, or control plane.
+    skip_when:
+      - Control concerns are incidental, inferred, or larger than the primary process.
+    alternatives:
+      - Use branching-flow for inline decisions or split the control plane into a companion diagram.
     section_limits: {nodes: 18, edges: 24, groups: 5}
     max_total_items: 47
     quality_limits:
@@ -139,6 +193,12 @@ patterns:
     summary: Show responsibility handoffs across actor, team, or system lanes.
     supports: [swimlane, flow]
     directions: [left-to-right, top-to-bottom]
+    pick_when:
+      - Every activity has an explicit owner and handoffs across roles, teams, or systems are central.
+    skip_when:
+      - Ownership is missing or message chronology is more important than activity ownership.
+    alternatives:
+      - Use linear-flow or branching-flow when ownership is secondary, and sequence-lifelines for messages.
     section_limits: {nodes: 18, edges: 22, lanes: 6}
     max_total_items: 48
     quality_limits:
@@ -154,6 +214,12 @@ patterns:
     summary: Show ordered messages across stable participant lifelines.
     supports: [sequence]
     directions: [top-to-bottom]
+    pick_when:
+      - Stable participants exchange explicitly ordered messages and chronology is primary.
+    skip_when:
+      - The source describes structural dependencies, owner activities, or unordered data movement.
+    alternatives:
+      - Use dependency-map for structure, swimlane-flow for owned activities, or data-pipeline for transformation.
     section_limits: {participants: 10, messages: 30}
     max_total_items: 40
     quality_limits:
@@ -169,6 +235,12 @@ patterns:
     summary: Arrange entities by domain with orthogonal relationship routing.
     supports: [er]
     directions: [left-to-right, top-to-bottom, matrix]
+    pick_when:
+      - Entities have explicit fields, keys, cardinalities, and domain grouping.
+    skip_when:
+      - Schema facts are incomplete or the reading task is data movement rather than relationships.
+    alternatives:
+      - Request clarification for missing schema facts or use data-pipeline for movement.
     section_limits: {entities: 12, relationships: 18}
     max_total_items: 30
     quality_limits:
@@ -184,6 +256,12 @@ patterns:
     summary: Show lifecycle states with a clear initial state, terminal states, and guarded transitions.
     supports: [state]
     directions: [left-to-right, top-to-bottom, radial]
+    pick_when:
+      - Named lifecycle states, guards, initial state, and terminal behavior form the primary topology.
+    skip_when:
+      - The source only lists procedural steps or owner handoffs without state semantics.
+    alternatives:
+      - Use branching-flow for procedure or swimlane-flow for responsibility.
     section_limits: {states: 14, transitions: 20}
     max_total_items: 34
     quality_limits:
@@ -199,6 +277,12 @@ patterns:
     summary: Show collection, transformation, storage, and consumption stages.
     supports: [data-flow]
     directions: [left-to-right, top-to-bottom]
+    pick_when:
+      - Collection, transformation, storage, and consumption form an ordered data path.
+    skip_when:
+      - A central exchange, event reactions, or synchronous participant calls dominate.
+    alternatives:
+      - Use data-hub for central exchange, event-bus for event reactions, or sequence-lifelines for calls.
     section_limits: {nodes: 14, edges: 18, groups: 5}
     max_total_items: 37
     quality_limits:
@@ -214,6 +298,12 @@ patterns:
     summary: Show producers and consumers around a central store, platform, or exchange.
     supports: [data-flow, architecture]
     directions: [radial, left-to-right]
+    pick_when:
+      - Explicit producers and consumers connect through one central store, platform, or exchange.
+    skip_when:
+      - Ordered transformation stages or multiple unrelated hubs are required.
+    alternatives:
+      - Use data-pipeline for ordered transformation or split unrelated hubs into separate views.
     section_limits: {nodes: 16, edges: 22, groups: 5}
     max_total_items: 43
     quality_limits:
@@ -229,6 +319,12 @@ patterns:
     summary: Show producers, topics, subscribers, and projections around one or more event rails.
     supports: [event-flow, architecture]
     directions: [left-to-right, top-to-bottom]
+    pick_when:
+      - Producers, named event rails or topics, subscribers, and projections are explicit.
+    skip_when:
+      - Payload transformation or synchronous request chronology is primary.
+    alternatives:
+      - Use data-pipeline for transformations or sequence-lifelines for chronological calls.
     section_limits: {nodes: 16, edges: 24, groups: 6}
     max_total_items: 46
     quality_limits:
@@ -244,6 +340,12 @@ patterns:
     summary: Show a small conceptual feedback loop with explicit state and stopping conditions.
     supports: [concept, flow]
     directions: [radial, left-to-right]
+    pick_when:
+      - A small explicit feedback loop has named stages, evidence, guardrails, and a stopping condition.
+    skip_when:
+      - Operational steps exceed the loop budget or the loop would require invented stages.
+    alternatives:
+      - Use branching-flow for operational detail and keep the loop as a separate conceptual overview.
     section_limits: {nodes: 10, edges: 14, groups: 4}
     max_total_items: 28
     quality_limits:

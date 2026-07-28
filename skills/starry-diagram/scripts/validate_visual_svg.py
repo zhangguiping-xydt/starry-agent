@@ -24,6 +24,7 @@ try:
     )
     from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
     from visual_geometry import analyze_visual_geometry
+    from visual_legibility import analyze_visual_legibility
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
@@ -43,6 +44,7 @@ except ModuleNotFoundError:
     )
     from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
     from visual_geometry import analyze_visual_geometry
+    from visual_legibility import analyze_visual_legibility
 
 
 _NUMBER_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)")
@@ -358,6 +360,7 @@ def validate_visual(
         warnings,
     )
     geometry_report: dict[str, Any] = {"checked": False}
+    legibility_report: dict[str, Any] = {"checked": False}
     actual_viewbox = parse_viewbox(root.attrib.get("viewBox"))
     layout_plan = lock.get("layout_plan", {})
     pattern = layout_plan.get("pattern") if isinstance(layout_plan, Mapping) else None
@@ -390,6 +393,16 @@ def validate_visual(
             errors.extend(geometry_errors)
             warnings.extend(geometry_warnings)
 
+    if actual_viewbox is not None:
+        legibility_report, legibility_errors, legibility_warnings = analyze_visual_legibility(
+            root,
+            actual_viewbox,
+            lock,
+        )
+        legibility_report["checked"] = True
+        errors.extend(legibility_errors)
+        warnings.extend(legibility_warnings)
+
     return {
         "status": "failed" if errors else "passed",
         "visual": {
@@ -400,6 +413,7 @@ def validate_visual(
             "semantic_identity": identity_report,
             "visual_change": change_report,
             "geometry": geometry_report,
+            "legibility": legibility_report,
         },
     }
 

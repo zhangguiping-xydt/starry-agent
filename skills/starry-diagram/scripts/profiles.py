@@ -31,6 +31,15 @@ def load_profiles(path: Path | None = None) -> dict[str, Any]:
         raise ValueError("diagram profiles must define a non-empty profiles mapping")
     if not isinstance(levels, Mapping) or not levels:
         raise ValueError("diagram profiles must define enhancement_levels")
+    for name, value in profiles.items():
+        if not isinstance(name, str) or not name or not isinstance(value, Mapping):
+            raise ValueError("every diagram profile must have a name and mapping body")
+        for field in ("pick_when", "skip_when", "alternatives"):
+            entries = value.get(field)
+            if not isinstance(entries, list) or not entries or not all(
+                isinstance(entry, str) and entry.strip() for entry in entries
+            ):
+                raise ValueError(f"diagram profile {name} must define non-empty {field}")
     return data
 
 
@@ -50,7 +59,7 @@ def load_layouts(path: Path | None = None) -> dict[str, Any]:
             raise ValueError("every technical layout must have a name and mapping body")
         if not isinstance(value.get("summary"), str) or not value["summary"].strip():
             raise ValueError(f"technical layout {name} must define a summary")
-        for field in ("supports", "directions", "rules"):
+        for field in ("supports", "directions", "pick_when", "skip_when", "alternatives", "rules"):
             entries = value.get(field)
             if not isinstance(entries, list) or not entries or not all(
                 isinstance(entry, str) and entry for entry in entries

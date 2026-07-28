@@ -9,6 +9,7 @@ The output is a technical diagram. Prioritize notation fidelity, topology, conta
 - Improve layout, spacing, alignment, hierarchy, grouping, and whitespace.
 - Apply typography, strokes, fills, shadows, and subtle effects from `style_tokens`.
 - Normalize canvas size and viewBox while keeping all semantic labels visible.
+- Apply the exact role sizes from `style_tokens.typography`; put `data-text-role` on every visible text element.
 - Add stable semantic metadata required by the visual gate.
 
 ## Forbidden changes
@@ -16,6 +17,7 @@ The output is a technical diagram. Prioritize notation fidelity, topology, conta
 - Adding, deleting, renaming, or merging nodes, entities, participants, states, messages, or edges.
 - Changing direction, cardinality, state transition meaning, event topic, command/event identity, or group membership.
 - Using colors, fonts, icons, or effects outside `style_tokens` unless the lock is updated by the strategist first.
+- Shrinking one label, clipping text, or changing `delivery_target` to avoid a legibility failure.
 - Moving an activity outside its lane, a component outside its boundary, or a message outside its locked order.
 
 ## Enhancement levels
@@ -39,6 +41,8 @@ Read `layout_plan` and the selected entry in `templates/layouts/technical_layout
 
 Do not solve excess complexity by shrinking labels, lengthening the canvas, or routing repeated diagonals across unrelated regions.
 
+Treat typography as geometry. Measure or conservatively estimate text first, allocate locked padding around it, and size the owner shape from that result. When a label wraps or a node grows, recompute its peer row or lane, downstream coordinates, region bounds, and connector routes. Generate `preview.png` only after the revised SVG passes the delivery-scale legibility gate.
+
 ## Semantic metadata
 
 Wrap every semantic visual item in a group with `data-diagram-id` and `data-diagram-kind`. Edge-like items also carry `data-from` and `data-to`. Groups and lanes carry `data-members="id-a,id-b"`. These attributes make semantic equivalence machine-verifiable and do not affect rendering.
@@ -54,3 +58,5 @@ The command fails if any locked item cannot be mapped. It does not count as visu
 ## No-op rule
 
 Light enhancement may retain renderer geometry. Medium and strong enhancement must produce a real geometric or typographic change. Metadata-only edits do not count. Validate against semantic.svg with `validate_visual_svg.py --semantic-svg`.
+
+Use these text roles exactly: `diagram-title`, `group-title`, `node-title`, `node-body`, `edge-label`, and `annotation`. Edge labels must live inside their own edge-like semantic group so the validator can verify route anchoring.

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import shutil
+import struct
 import sys
+import zlib
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -16,12 +21,15 @@ if str(SCRIPTS_DIR) not in sys.path:
 from build_check_report import build_check_report  # noqa: E402
 from build_embed_blocks import build_embed_blocks  # noqa: E402
 from profiles import load_layouts, load_profiles  # noqa: E402
+from render_preview import png_dimensions, render_preview, target_dimensions  # noqa: E402
 from render_svg import render_svg  # noqa: E402
 from stamp_visual_metadata import stamp_visual_metadata  # noqa: E402
 from validate_diagram_lock import validate_lock  # noqa: E402
 from validate_diagram_manifest import validate_manifest_file  # noqa: E402
+from validate_preview_review import REQUIRED_CHECKS, validate_preview_review  # noqa: E402
 from validate_semantic_source import validate_semantic_source  # noqa: E402
 from validate_visual_svg import validate_visual_svg  # noqa: E402
+from visual_legibility import _contrast_ratio  # noqa: E402
 
 
 def _style_tokens() -> dict[str, object]:
@@ -37,17 +45,20 @@ def _style_tokens() -> dict[str, object]:
         },
         "typography": {
             "font_family": "Noto Sans CJK SC",
-            "title_size": 22,
-            "node_size": 13,
-            "edge_label_size": 11,
-            "min_font_size": 11,
+            "diagram_title_size": 28,
+            "group_title_size": 18,
+            "node_title_size": 16,
+            "node_body_size": 14,
+            "edge_label_size": 14,
+            "annotation_size": 13,
+            "min_font_size": 12,
         },
         "geometry": {
-            "node_padding_x": 18,
-            "node_padding_y": 12,
-            "cluster_padding": 24,
-            "node_gap": 32,
-            "rank_gap": 56,
+            "node_padding_x": 24,
+            "node_padding_y": 16,
+            "cluster_padding": 28,
+            "node_gap": 40,
+            "rank_gap": 68,
             "corner_radius": 8,
         },
         "connectors": {"width": 1.6, "arrow_size": 7, "routing": "orthogonal"},
@@ -66,6 +77,7 @@ def _layout_plan(
 ) -> dict[str, object]:
     return {
         "pattern": pattern,
+        "selection_reason": f"Source semantics match the {pattern} selection contract.",
         "direction": direction,
         "density": "balanced",
         "view_role": "standalone",
@@ -77,6 +89,21 @@ def _layout_plan(
             "control": control_edges or [],
         },
     }
+
+
+def _delivery_target(width: int = 1200, height: int | None = None) -> dict[str, object]:
+    target: dict[str, object] = {
+        "width_px": width,
+        "fit": "contain",
+        "min_effective_font_px": 12,
+        "min_contrast_ratio": 4.5,
+        "min_text_padding_px": 4,
+        "max_edge_label_distance_px": 28,
+        "max_unmeasurable_text_fraction": 0,
+    }
+    if height is not None:
+        target["height_px"] = height
+    return target
 
 
 def _architecture_lock(
@@ -99,7 +126,8 @@ def _architecture_lock(
             ["node-a", "node-b"],
             ["a-to-b"],
         ),
-        "canvas": {"mode": "fixed", "width": 200, "height": 100, "viewBox": "0 0 200 100"},
+        "canvas": {"mode": "fixed", "width": 260, "height": 120, "viewBox": "0 0 260 120"},
+        "delivery_target": _delivery_target(260, 120),
         "nodes": [
             {"id": "node-a", "label": "Node A", "required": True},
             {"id": "node-b", "label": "Node B", "required": True},
@@ -136,31 +164,72 @@ def _base_lock(diagram_type: str, source_format: str, enhancement: str) -> dict[
             "enhancement_level": enhancement,
         },
         "canvas": {"mode": "auto", "max_width": 1200, "max_height": 900, "margin": 24},
+        "delivery_target": _delivery_target(),
         "style_tokens": _style_tokens(),
     }
 
 
-def _svg(*, width: int = 200, shifted: bool = False, include_edge_endpoints: bool = True) -> str:
+def _svg(*, width: int = 260, shifted: bool = False, include_edge_endpoints: bool = True) -> str:
     edge_metadata = ' data-from="node-a" data-to="node-b"' if include_edge_endpoints else ""
-    node_b_x = 130 if shifted else 120
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} 100">
-  <rect width="{width}" height="100" fill="#f8fafc"/>
+    node_b_x = 180 if shifted else 170
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} 120">
+  <rect width="{width}" height="120" fill="#f8fafc"/>
   <g data-diagram-id="runtime" data-diagram-kind="group" data-members="node-a,node-b">
-    <text x="8" y="14" font-family="Noto Sans CJK SC" font-size="11" fill="#0f172a">Runtime</text>
+    <text x="8" y="22" font-family="Noto Sans CJK SC" font-size="18" data-text-role="group-title" fill="#0f172a">Runtime</text>
   </g>
   <g data-diagram-id="node-a" data-diagram-kind="node">
-    <rect x="20" y="30" width="50" height="30" fill="#ffffff" stroke="#2563eb"/>
-    <text x="25" y="49" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">Node A</text>
+    <rect x="20" y="45" width="70" height="40" fill="#ffffff" stroke="#2563eb"/>
+    <text x="30" y="70" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Node A</text>
   </g>
   <g data-diagram-id="node-b" data-diagram-kind="node">
-    <rect x="{node_b_x}" y="30" width="50" height="30" fill="#ffffff" stroke="#2563eb"/>
-    <text x="{node_b_x + 5}" y="49" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">Node B</text>
+    <rect x="{node_b_x}" y="45" width="70" height="40" fill="#ffffff" stroke="#2563eb"/>
+    <text x="{node_b_x + 10}" y="70" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Node B</text>
   </g>
   <g data-diagram-id="a-to-b" data-diagram-kind="edge"{edge_metadata}>
-    <path d="M70 45 H{node_b_x}" fill="none" stroke="#94a3b8"/>
-    <text x="86" y="40" font-family="Noto Sans CJK SC" font-size="11" fill="#64748b">Calls</text>
+    <path d="M90 65 H{node_b_x}" fill="none" stroke="#94a3b8"/>
+    <text x="117" y="58" font-family="Noto Sans CJK SC" font-size="14" data-text-role="edge-label" fill="#64748b">Calls</text>
   </g>
 </svg>'''
+
+
+def _write_png(path: Path, width: int, height: int) -> None:
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(payload))
+            + kind
+            + payload
+            + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+        )
+
+    row = b"\x00" + b"\xff\xff\xff" * width
+    payload = b"\x89PNG\r\n\x1a\n"
+    payload += chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+    payload += chunk(b"IDAT", zlib.compress(row * height))
+    payload += chunk(b"IEND", b"")
+    path.write_bytes(payload)
+
+
+def _write_preview_review(diagram_dir: Path) -> None:
+    preview_path = diagram_dir / "preview.png"
+    review = {
+        "preview_sha256": hashlib.sha256(preview_path.read_bytes()).hexdigest(),
+        "visual_svg_sha256": hashlib.sha256((diagram_dir / "visual.svg").read_bytes()).hexdigest(),
+        "reviewed_at_target_size": True,
+        "status": "passed",
+        "checks": {
+            "diagram_type_recognizable": "passed",
+            "primary_path_clear": "passed",
+            "grouping_and_boundaries": "passed",
+            "edge_label_ownership": "passed",
+            "emphasis_matches_view_role": "passed",
+            "technical_notation_fidelity": "passed",
+            "no_slide_chrome": "passed",
+        },
+        "findings": [],
+    }
+    (diagram_dir / "preview_review.yaml").write_text(
+        yaml.safe_dump(review, sort_keys=False), encoding="utf-8"
+    )
 
 
 def _write_diagram(tmp_path: Path, *, visual_shifted: bool = True) -> Path:
@@ -184,6 +253,8 @@ def _write_diagram(tmp_path: Path, *, visual_shifted: bool = True) -> Path:
     (diagram_dir / "visual.svg").write_text(
         _svg(shifted=visual_shifted), encoding="utf-8"
     )
+    _write_png(diagram_dir / "preview.png", 260, 120)
+    _write_preview_review(diagram_dir)
     (diagram_dir / "render_report.json").write_text(
         json.dumps({"status": "passed", "renderer": "dot"}), encoding="utf-8"
     )
@@ -231,8 +302,47 @@ def test_profiles_cover_every_diagram_type_reference() -> None:
     assert "references/diagram-types/<type>.md" in skill_text
     layouts = load_layouts()["patterns"]
     for diagram_type, profile in load_profiles()["profiles"].items():
+        assert profile["pick_when"]
+        assert profile["skip_when"]
+        assert profile["alternatives"]
         for pattern in profile["allowed_layout_patterns"]:
             assert diagram_type in layouts[pattern]["supports"]
+    for layout in layouts.values():
+        assert layout["pick_when"]
+        assert layout["skip_when"]
+        assert layout["alternatives"]
+
+
+def test_preview_review_template_matches_validator_contract() -> None:
+    template = yaml.safe_load(
+        (SKILL_DIR / "templates" / "locks" / "preview_review_reference.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert tuple(template["checks"]) == REQUIRED_CHECKS
+
+
+def test_reference_typography_meets_reference_delivery_target() -> None:
+    lock = yaml.safe_load(
+        (SKILL_DIR / "templates" / "locks" / "diagram_lock_reference.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    canvas = lock["canvas"]
+    target = lock["delivery_target"]
+    scale = min(target["width_px"] / canvas["width"], target["height_px"] / canvas["height"])
+    typography = lock["style_tokens"]["typography"]
+    role_sizes = [value for key, value in typography.items() if key.endswith("_size") and key != "min_font_size"]
+    assert min(role_sizes) * scale >= target["min_effective_font_px"]
+
+
+def test_style_text_tokens_meet_default_contrast() -> None:
+    for style_path in (SKILL_DIR / "templates" / "styles").glob("*.yaml"):
+        style = yaml.safe_load(style_path.read_text(encoding="utf-8"))
+        colors = style["colors"]
+        assert _contrast_ratio(colors["text"], colors["background"]) >= 4.5
+        assert _contrast_ratio(colors["muted"], colors["background"]) >= 4.5
+        assert _contrast_ratio(colors["muted"], colors["surface"]) >= 4.5
 
 
 def test_lock_rejects_enhancement_below_type_minimum() -> None:
@@ -252,7 +362,7 @@ def test_lock_enforces_typography_role_hierarchy() -> None:
     lock["style_tokens"]["typography"]["edge_label_size"] = 9
     report = validate_lock(lock)
     assert report["status"] == "failed"
-    assert any("title_size >= node_size" in error for error in report["errors"])
+    assert any("diagram_title_size >= group_title_size" in error for error in report["errors"])
 
 
 def test_architecture_allows_empty_groups_without_inventing_boundaries() -> None:
@@ -357,6 +467,25 @@ def test_lock_requires_complete_layout_plan() -> None:
     report = validate_lock(lock)
     assert report["status"] == "failed"
     assert any("layout_plan" in error for error in report["errors"])
+
+
+def test_lock_requires_delivery_target_and_layout_selection_reason() -> None:
+    lock = _architecture_lock()
+    del lock["delivery_target"]
+    del lock["layout_plan"]["selection_reason"]
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("delivery_target" in error for error in report["errors"])
+    assert any("selection_reason" in error for error in report["errors"])
+
+
+def test_lock_rejects_dense_overview_layout() -> None:
+    lock = _architecture_lock()
+    lock["layout_plan"]["density"] = "dense"
+    lock["layout_plan"]["view_role"] = "overview"
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("dense is incompatible" in error for error in report["errors"])
 
 
 def test_lock_requires_explicit_layout_regions_and_edge_roles() -> None:
@@ -473,12 +602,12 @@ def test_visual_rejects_crossing_edges(tmp_path: Path) -> None:
     svg_path.write_text(
         '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
   <rect width="200" height="120" fill="#f8fafc"/>
-  <g data-diagram-id="a" data-diagram-kind="node"><rect x="10" y="10" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="20" y="25" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">A</text></g>
-  <g data-diagram-id="b" data-diagram-kind="node"><rect x="160" y="90" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="170" y="105" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">B</text></g>
-  <g data-diagram-id="c" data-diagram-kind="node"><rect x="10" y="90" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="20" y="105" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">C</text></g>
-  <g data-diagram-id="d" data-diagram-kind="node"><rect x="160" y="10" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="170" y="25" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">D</text></g>
-  <g data-diagram-id="a-b" data-diagram-kind="edge" data-from="a" data-to="b"><line x1="40" y1="30" x2="160" y2="90" stroke="#94a3b8"/><text x="95" y="54" font-family="Noto Sans CJK SC" font-size="11" fill="#64748b">AB</text></g>
-  <g data-diagram-id="c-d" data-diagram-kind="edge" data-from="c" data-to="d"><line x1="40" y1="90" x2="160" y2="30" stroke="#94a3b8"/><text x="95" y="78" font-family="Noto Sans CJK SC" font-size="11" fill="#64748b">CD</text></g>
+  <g data-diagram-id="a" data-diagram-kind="node"><rect x="10" y="6" width="40" height="30" fill="#ffffff" stroke="#2563eb"/><text x="30" y="21" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">A</text></g>
+  <g data-diagram-id="b" data-diagram-kind="node"><rect x="150" y="84" width="40" height="30" fill="#ffffff" stroke="#2563eb"/><text x="170" y="99" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">B</text></g>
+  <g data-diagram-id="c" data-diagram-kind="node"><rect x="10" y="84" width="40" height="30" fill="#ffffff" stroke="#2563eb"/><text x="30" y="99" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">C</text></g>
+  <g data-diagram-id="d" data-diagram-kind="node"><rect x="150" y="6" width="40" height="30" fill="#ffffff" stroke="#2563eb"/><text x="170" y="21" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">D</text></g>
+  <g data-diagram-id="a-b" data-diagram-kind="edge" data-from="a" data-to="b"><line x1="50" y1="36" x2="150" y2="84" stroke="#94a3b8"/><text x="75" y="48" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="14" data-text-role="edge-label" fill="#64748b">AB</text></g>
+  <g data-diagram-id="c-d" data-diagram-kind="edge" data-from="c" data-to="d"><line x1="50" y1="84" x2="150" y2="36" stroke="#94a3b8"/><text x="125" y="48" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="14" data-text-role="edge-label" fill="#64748b">CD</text></g>
 </svg>''',
         encoding="utf-8",
     )
@@ -510,10 +639,10 @@ def test_visual_rejects_edge_through_nonendpoint_node(tmp_path: Path) -> None:
     svg_path.write_text(
         '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
   <rect width="200" height="100" fill="#f8fafc"/>
-  <g data-diagram-id="a" data-diagram-kind="node"><rect x="10" y="40" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="20" y="55" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">A</text></g>
-  <g data-diagram-id="middle" data-diagram-kind="node"><rect x="85" y="35" width="30" height="30" fill="#ffffff" stroke="#2563eb"/><text x="88" y="54" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">Middle</text></g>
-  <g data-diagram-id="b" data-diagram-kind="node"><rect x="160" y="40" width="30" height="20" fill="#ffffff" stroke="#2563eb"/><text x="170" y="55" font-family="Noto Sans CJK SC" font-size="13" fill="#0f172a">B</text></g>
-  <g data-diagram-id="a-b" data-diagram-kind="edge" data-from="a" data-to="b"><line x1="40" y1="50" x2="160" y2="50" stroke="#94a3b8"/><text x="65" y="44" font-family="Noto Sans CJK SC" font-size="11" fill="#64748b">AB</text></g>
+  <g data-diagram-id="a" data-diagram-kind="node"><rect x="10" y="35" width="40" height="30" fill="#ffffff" stroke="#2563eb"/><text x="30" y="50" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">A</text></g>
+  <g data-diagram-id="middle" data-diagram-kind="node"><rect x="80" y="28" width="40" height="44" fill="#ffffff" stroke="#2563eb"/><text x="100" y="50" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Middle</text></g>
+  <g data-diagram-id="b" data-diagram-kind="node"><rect x="150" y="35" width="40" height="30" fill="#ffffff" stroke="#2563eb"/><text x="170" y="50" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">B</text></g>
+  <g data-diagram-id="a-b" data-diagram-kind="edge" data-from="a" data-to="b"><line x1="50" y1="50" x2="150" y2="50" stroke="#94a3b8"/><text x="64" y="50" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="14" data-text-role="edge-label" fill="#64748b">AB</text></g>
 </svg>''',
         encoding="utf-8",
     )
@@ -534,8 +663,8 @@ def test_visual_enforces_edge_label_role_size(tmp_path: Path) -> None:
     visual_path = diagram_dir / "visual.svg"
     visual_path.write_text(
         visual_path.read_text(encoding="utf-8").replace(
-            'font-size="11" fill="#64748b">Calls',
-            'font-size="10" fill="#64748b">Calls',
+            'font-size="14" data-text-role="edge-label" fill="#64748b">Calls',
+            'font-size="12" data-text-role="edge-label" fill="#64748b">Calls',
         ),
         encoding="utf-8",
     )
@@ -546,6 +675,75 @@ def test_visual_enforces_edge_label_role_size(tmp_path: Path) -> None:
     )
     assert report["status"] == "failed"
     assert any("edge_label_size" in error for error in report["visual"]["errors"])
+
+
+def test_visual_rejects_font_that_becomes_too_small_at_delivery_size(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    lock_path = diagram_dir / "diagram_lock.yaml"
+    lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+    lock["delivery_target"]["width_px"] = 130
+    lock["delivery_target"]["height_px"] = 60
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    report = validate_visual_svg(
+        lock_path,
+        diagram_dir / "visual.svg",
+        semantic_path=diagram_dir / "semantic.svg",
+    )
+    assert report["status"] == "failed"
+    assert report["visual"]["legibility"]["delivery_scale"] == 0.5
+    assert any("effective font-size" in error for error in report["visual"]["errors"])
+
+
+def test_visual_rejects_text_overflow_and_missing_role(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    visual_path = diagram_dir / "visual.svg"
+    visual = visual_path.read_text(encoding="utf-8")
+    visual = visual.replace('width="70" height="40"', 'width="38" height="40"', 1)
+    visual = visual.replace(' data-text-role="node-title"', "", 1)
+    visual_path.write_text(visual, encoding="utf-8")
+    report = validate_visual_svg(
+        diagram_dir / "diagram_lock.yaml",
+        visual_path,
+        semantic_path=diagram_dir / "semantic.svg",
+    )
+    assert report["status"] == "failed"
+    assert report["visual"]["legibility"]["text"]["overflows"]
+    assert any("data-text-role" in error for error in report["visual"]["errors"])
+
+
+def test_visual_rejects_unanchored_edge_label_and_low_contrast(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    visual_path = diagram_dir / "visual.svg"
+    visual = visual_path.read_text(encoding="utf-8")
+    visual = visual.replace('x="117" y="58"', 'x="117" y="18"')
+    visual = visual.replace('data-text-role="edge-label" fill="#64748b">Calls', 'data-text-role="edge-label" fill="#94a3b8">Calls')
+    visual_path.write_text(visual, encoding="utf-8")
+    report = validate_visual_svg(
+        diagram_dir / "diagram_lock.yaml",
+        visual_path,
+        semantic_path=diagram_dir / "semantic.svg",
+    )
+    assert report["status"] == "failed"
+    legibility = report["visual"]["legibility"]
+    assert legibility["geometry"]["unanchored_edge_labels"]
+    assert legibility["text"]["contrast_failures"]
+
+
+def test_visual_rejects_unmeasurable_text_contrast(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    visual_path = diagram_dir / "visual.svg"
+    visual = visual_path.read_text(encoding="utf-8").replace(
+        'data-text-role="node-title" fill="#0f172a">Node A',
+        'data-text-role="node-title">Node A',
+    )
+    visual_path.write_text(visual, encoding="utf-8")
+    report = validate_visual_svg(
+        diagram_dir / "diagram_lock.yaml",
+        visual_path,
+        semantic_path=diagram_dir / "semantic.svg",
+    )
+    assert report["status"] == "failed"
+    assert report["visual"]["legibility"]["text"]["contrast_unmeasurable"] == ["Node A"]
 
 
 def test_visual_rejects_fixed_canvas_mismatch(tmp_path: Path) -> None:
@@ -579,7 +777,7 @@ def test_visual_rejects_unlisted_identity_and_font_below_minimum(tmp_path: Path)
     visual = _svg(shifted=True).replace(
         "</svg>",
         '''<g data-diagram-id="unexpected" data-diagram-kind="node">
-  <text font-family="Noto Sans CJK SC" font-size="8" fill="#0f172a">Unexpected</text>
+  <text x="4" y="20" font-family="Noto Sans CJK SC" font-size="8" data-text-role="node-title" fill="#0f172a">Unexpected</text>
 </g></svg>''',
     )
     (diagram_dir / "visual.svg").write_text(visual, encoding="utf-8")
@@ -634,6 +832,61 @@ def test_build_check_report_generates_machine_derived_pass(tmp_path: Path) -> No
     stored = json.loads((diagram_dir / "check_report.json").read_text(encoding="utf-8"))
     assert stored["hashes"]["semantic_svg"]
     assert stored["hashes"]["visual_svg"]
+    assert stored["hashes"]["preview_png"]
+
+
+def test_build_check_report_requires_target_size_preview(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    (diagram_dir / "preview.png").unlink()
+    report = build_check_report(diagram_dir)
+    assert report["status"] == "failed"
+    assert "preview" in report["failed_checks"]
+
+
+def test_preview_review_is_bound_to_current_preview(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    _write_png(diagram_dir / "preview.png", 260, 120)
+    preview = diagram_dir / "preview.png"
+    preview.write_bytes(preview.read_bytes() + b"stale")
+    report = validate_preview_review(preview, diagram_dir / "preview_review.yaml")
+    assert report["status"] == "failed"
+    assert any("hash does not match" in error for error in report["errors"])
+
+
+def test_preview_review_is_bound_to_current_visual_svg(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    visual_path = diagram_dir / "visual.svg"
+    visual_path.write_text(
+        visual_path.read_text(encoding="utf-8").replace("</svg>", "<!-- changed --></svg>"),
+        encoding="utf-8",
+    )
+    report = validate_preview_review(
+        diagram_dir / "preview.png",
+        diagram_dir / "preview_review.yaml",
+        visual_path=visual_path,
+    )
+    assert report["status"] == "failed"
+    assert any("visual hash does not match" in error for error in report["errors"])
+
+
+def test_preview_dimension_helpers_and_renderer(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    lock_path = diagram_dir / "diagram_lock.yaml"
+    visual_path = diagram_dir / "visual.svg"
+    lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+    del lock["delivery_target"]["height_px"]
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    assert target_dimensions(lock, visual_path) == (260, 120)
+    assert png_dimensions(diagram_dir / "preview.png") == (260, 120)
+
+    if not any(shutil.which(name) for name in ("google-chrome", "chromium", "convert", "magick")):
+        pytest.skip("no supported SVG preview renderer installed")
+    rendered = diagram_dir / "preview.png"
+    report = render_preview(lock_path, visual_path, rendered)
+    assert report["status"] == "passed"
+    assert png_dimensions(rendered) == (260, 120)
+    _write_preview_review(diagram_dir)
+    assert build_check_report(diagram_dir)["status"] == "passed"
 
 
 def test_stamp_visual_metadata_adds_endpoints_and_members(tmp_path: Path) -> None:
@@ -707,6 +960,16 @@ def test_pack_report_fails_when_generated_diagram_check_is_missing(tmp_path: Pat
     report = build_embed_blocks(tmp_path)
     assert report["status"] == "failed"
     assert report["diagrams"][0]["check_status"] == "missing"
+
+
+def test_pack_report_rejects_missing_preview_even_with_stale_pass_report(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    build_check_report(diagram_dir)
+    _write_manifest(tmp_path)
+    (diagram_dir / "preview.png").unlink()
+    report = build_embed_blocks(tmp_path)
+    assert report["status"] == "failed"
+    assert report["diagrams"][0]["preview"] is None
 
 
 def test_manifest_and_pack_report_pass_only_when_lock_contract_matches(tmp_path: Path) -> None:

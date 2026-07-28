@@ -9,7 +9,9 @@ from typing import Any
 
 try:
     from common import read_yaml, write_json
+    from render_preview import validate_preview
     from validate_diagram_lock import validate_lock_file
+    from validate_preview_review import validate_preview_review
     from validate_semantic_source import validate_semantic_source
     from validate_visual_svg import validate_visual_svg
 except ModuleNotFoundError:
@@ -17,7 +19,9 @@ except ModuleNotFoundError:
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import read_yaml, write_json
+    from render_preview import validate_preview
     from validate_diagram_lock import validate_lock_file
+    from validate_preview_review import validate_preview_review
     from validate_semantic_source import validate_semantic_source
     from validate_visual_svg import validate_visual_svg
 
@@ -60,6 +64,8 @@ def build_check_report(
     lock_path = diagram_dir / "diagram_lock.yaml"
     semantic_path = diagram_dir / "semantic.svg"
     visual_path = diagram_dir / "visual.svg"
+    preview_path = diagram_dir / "preview.png"
+    preview_review_path = diagram_dir / "preview_review.yaml"
 
     if lock_path.exists():
         lock = read_yaml(lock_path)
@@ -90,6 +96,16 @@ def build_check_report(
         if lock_path.exists() and semantic_path.exists() and visual_path.exists()
         else _missing_report("semantic.svg or visual.svg", visual_path)
     )
+    preview_report = (
+        validate_preview(lock, visual_path, preview_path)
+        if lock_path.exists() and visual_path.exists()
+        else _missing_report("visual.svg or preview.png", preview_path)
+    )
+    preview_review_report = validate_preview_review(
+        preview_path,
+        preview_review_path,
+        visual_path=visual_path,
+    )
     renderer_report = _read_json(diagram_dir / "render_report.json")
     if renderer_report is None:
         renderer_report = {
@@ -102,6 +118,8 @@ def build_check_report(
         "semantic_source": semantic_report,
         "renderer": renderer_report,
         "visual": visual_report,
+        "preview": preview_report,
+        "preview_review": preview_review_report,
     }
     failed_checks = sorted(
         name for name, report in reports.items() if report.get("status") != "passed"
@@ -120,12 +138,16 @@ def build_check_report(
             "source": _sha256(source_path),
             "semantic_svg": _sha256(semantic_path),
             "visual_svg": _sha256(visual_path),
+            "preview_png": _sha256(preview_path),
+            "preview_review": _sha256(preview_review_path),
         },
     }
 
     write_json(diagram_dir / "lock_report.json", lock_report)
     write_json(diagram_dir / "semantic_report.json", semantic_report)
     write_json(diagram_dir / "visual_report.json", visual_report)
+    write_json(diagram_dir / "preview_report.json", preview_report)
+    write_json(diagram_dir / "preview_review_report.json", preview_review_report)
     write_json(diagram_dir / "check_report.json", report)
     return report
 

@@ -1,0 +1,13 @@
+preview_sha256: "replace-with-preview-png-sha256"
+visual_svg_sha256: "replace-with-visual-svg-sha256"
+reviewed_at_target_size: true
+status: passed
+checks:
+  diagram_type_recognizable: passed
+  primary_path_clear: passed
+  grouping_and_boundaries: passed
+  edge_label_ownership: passed
+  emphasis_matches_view_role: passed
+  technical_notation_fidelity: passed
+  no_slide_chrome: passed
+findings: []

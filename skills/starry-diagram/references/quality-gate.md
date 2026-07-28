@@ -10,8 +10,11 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 4. Render semantic.svg and write render_report.json.
 5. Create visual.svg after the semantic gate passes.
 6. `validate_visual_svg.py diagram_lock.yaml visual.svg --semantic-svg semantic.svg`
-7. `build_check_report.py <diagram-directory>`
-8. `build_embed_blocks.py <pack-root>` only after every generated diagram passes.
+7. `render_preview.py diagram_lock.yaml visual.svg preview.png --report preview_render_report.json`
+8. Inspect `preview.png` at 100%, revise until the technical visual review passes, and write `preview_review.yaml`.
+9. `validate_preview_review.py preview.png preview_review.yaml`
+10. `build_check_report.py <diagram-directory>`
+11. `build_embed_blocks.py <pack-root>` only after every generated diagram passes.
 
 ## Lock checks
 
@@ -21,7 +24,9 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Enhancement level meets the type minimum.
 - Type-specific semantic sections exist and are internally valid.
 - Fixed canvas dimensions and viewBox agree; auto canvas bounds are valid.
-- Technical style defines required colors, font family, and minimum font size.
+- Delivery target defines the actual embedding viewport and legibility thresholds.
+- Technical style defines required colors, font family, and every typography role.
+- Layout selection has a source-grounded reason after Pick/Skip/Alternative evaluation.
 
 ## Manifest checks
 
@@ -44,7 +49,8 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - SVG parses and its canvas follows the lock.
 - Required labels remain visible.
 - Colors and fonts come from style_tokens.
-- No text falls below the locked minimum font size.
+- Every visible text element declares a locked `data-text-role` and uses that role's exact size.
+- No text falls below the minimum effective font size after scaling into the delivery viewport.
 - Every semantic id is present exactly once through stable metadata or a supported renderer id.
 - Edge endpoints and group/lane memberships match the lock.
 - No unlisted semantic identity is introduced.
@@ -54,6 +60,18 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Analyzable edge coverage meets the selected layout threshold.
 - Edge crossings, edge-to-nonendpoint-node intersections, and long routes stay within the selected layout limits.
 - Edge labels meet `style_tokens.typography.edge_label_size`, not only the global minimum.
+- Text stays inside its owning geometry with locked delivery padding.
+- Text and nodes do not overlap or leave the canvas.
+- Edge labels do not overlap nodes and remain unambiguously anchored to their own route.
+- Text contrast meets the delivery target ratio.
+- Measurable text coverage meets the delivery target threshold.
+
+## Preview checks
+
+- `preview.png` exists and is rendered from the passed `visual.svg`.
+- PNG dimensions exactly match `delivery_target`; derive height from viewBox when omitted.
+- `build_check_report.py` validates the PNG independently of the renderer report.
+- `preview_review.yaml` matches the current PNG and visual SVG hashes and every technical visual review check passes.
 
 ## Failure handling
 
@@ -65,4 +83,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 | Renderer unavailable | Write render_unavailable and a failed check report |
 | Visual semantic drift | Write visual_failed; keep semantic artifacts |
 | Visual no-op at medium/strong | Fail visual gate and perform the required visual work |
+| Text overflow or undersized delivery text | Expand/reflow geometry, reroute downstream edges, or split the diagram |
+| Missing or wrong-size preview | Render `preview.png` at the locked delivery target and rebuild reports |
+| Stale or failed technical review | Inspect the current preview, revise the SVG, rerender, and rebind the review hash |
 | Pack contains a failed diagram | Fail diagram_pack_report; do not present the pack as passed |

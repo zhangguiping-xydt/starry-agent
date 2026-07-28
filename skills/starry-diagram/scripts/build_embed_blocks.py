@@ -9,12 +9,14 @@ from typing import Any
 try:
     from common import read_yaml, write_json
     from validate_diagram_manifest import validate_manifest_file
+    from validate_preview_review import validate_preview_review
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import read_yaml, write_json
     from validate_diagram_manifest import validate_manifest_file
+    from validate_preview_review import validate_preview_review
 
 
 def source_filename(source_format: str) -> str:
@@ -90,6 +92,8 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
     source_file = Path(_diagram_source_file(entry)).name
     visual_svg = diagram_dir / "visual.svg"
     semantic_svg = diagram_dir / "semantic.svg"
+    preview_png = diagram_dir / "preview.png"
+    preview_review = diagram_dir / "preview_review.yaml"
     warnings: list[str] = []
     check_report_path = diagram_dir / "check_report.json"
     check_status = "missing"
@@ -117,7 +121,19 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
         if image_file == "semantic.svg":
             lines.extend(["视觉版本不可用，当前嵌入语义版本。", ""])
         lines.append(f"![{title}](./{image_file})")
-    lines.extend(["", f"源码：[{source_file}](./{source_file})", ""])
+    lines.append("")
+    if preview_png.exists():
+        lines.extend(["目标尺寸预览：[preview.png](./preview.png)", ""])
+    else:
+        warnings.append(f"{directory}: preview.png missing")
+    review_report = validate_preview_review(
+        preview_png,
+        preview_review,
+        visual_path=visual_svg,
+    )
+    if review_report["status"] != "passed":
+        warnings.append(f"{directory}: preview review missing, stale, or failed")
+    lines.extend([f"源码：[{source_file}](./{source_file})", ""])
 
     diagram_dir.mkdir(parents=True, exist_ok=True)
     (diagram_dir / "embed.md").write_text("\n".join(lines), encoding="utf-8")
@@ -127,6 +143,8 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
         "directory": directory,
         "embed": str(diagram_dir / "embed.md"),
         "image": image_file,
+        "preview": "preview.png" if preview_png.exists() else None,
+        "preview_review_status": review_report["status"],
         "source": source_file,
         "check_status": check_status,
         "warnings": warnings,
@@ -146,7 +164,11 @@ def build_embed_blocks(diagrams_root: Path) -> dict[str, Any]:
     diagrams = [build_embed_for_diagram(diagrams_root, entry) for entry in generated_entries]
     warnings = [warning for diagram in diagrams for warning in diagram["warnings"]]
     failed_diagrams = [
-        diagram["id"] for diagram in diagrams if diagram["check_status"] != "passed"
+        diagram["id"]
+        for diagram in diagrams
+        if diagram["check_status"] != "passed"
+        or diagram["preview"] is None
+        or diagram["preview_review_status"] != "passed"
     ]
     if failed_diagrams:
         warnings.append("diagram quality checks not passed: " + ", ".join(failed_diagrams))

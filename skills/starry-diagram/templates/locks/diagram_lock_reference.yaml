@@ -7,6 +7,7 @@ visual_style:
   enhancement_level: strong
 layout_plan:
   pattern: layered-system
+  selection_reason: 源材料明确给出应用入口与编排服务的分层依赖，且不存在以消息时序为主的阅读任务。
   direction: left-to-right
   density: balanced
   view_role: standalone
@@ -24,6 +25,15 @@ canvas:
   width: 1280
   height: 720
   viewBox: "0 0 1280 720"
+delivery_target:
+  width_px: 1200
+  height_px: 675
+  fit: contain
+  min_effective_font_px: 12
+  min_contrast_ratio: 4.5
+  min_text_padding_px: 6
+  max_edge_label_distance_px: 28
+  max_unmeasurable_text_fraction: 0
 nodes:
   - id: frontend-chat-entry
     label: 前端对话入口
@@ -56,16 +66,19 @@ style_tokens:
     line: "#94a3b8"
   typography:
     font_family: "Noto Sans CJK SC"
-    title_size: 22
-    node_size: 13
-    edge_label_size: 11
-    min_font_size: 11
+    diagram_title_size: 28
+    group_title_size: 18
+    node_title_size: 16
+    node_body_size: 14
+    edge_label_size: 14
+    annotation_size: 13
+    min_font_size: 12
   geometry:
-    node_padding_x: 18
-    node_padding_y: 12
-    cluster_padding: 24
-    node_gap: 32
-    rank_gap: 56
+    node_padding_x: 24
+    node_padding_y: 16
+    cluster_padding: 28
+    node_gap: 40
+    rank_gap: 68
     corner_radius: 8
   connectors:
     width: 1.6

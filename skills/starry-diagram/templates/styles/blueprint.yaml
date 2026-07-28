@@ -9,16 +9,19 @@ colors:
   line: "#3b82f6"
 typography:
   font_family: "Noto Sans CJK SC"
-  title_size: 22
-  node_size: 13
-  edge_label_size: 11
-  min_font_size: 11
+  diagram_title_size: 28
+  group_title_size: 18
+  node_title_size: 16
+  node_body_size: 14
+  edge_label_size: 14
+  annotation_size: 13
+  min_font_size: 12
 geometry:
-  node_padding_x: 18
-  node_padding_y: 12
-  cluster_padding: 24
-  node_gap: 32
-  rank_gap: 56
+  node_padding_x: 24
+  node_padding_y: 16
+  cluster_padding: 28
+  node_gap: 40
+  rank_gap: 68
   corner_radius: 8
 connectors:
   width: 1.6

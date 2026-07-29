@@ -21,6 +21,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from build_check_report import build_check_report  # noqa: E402
 from build_embed_blocks import build_embed_blocks  # noqa: E402
 from profiles import load_layouts, load_profiles  # noqa: E402
+from render_delivery_raster import raster_dimensions, validate_delivery_raster  # noqa: E402
 from render_preview import png_dimensions, render_preview, target_dimensions  # noqa: E402
 from render_svg import render_svg  # noqa: E402
 from stamp_visual_metadata import stamp_visual_metadata  # noqa: E402
@@ -229,6 +230,25 @@ def _write_preview_review(diagram_dir: Path) -> None:
     }
     (diagram_dir / "preview_review.yaml").write_text(
         yaml.safe_dump(review, sort_keys=False), encoding="utf-8"
+    )
+
+
+def _write_delivery_render_report(diagram_dir: Path) -> None:
+    delivery = diagram_dir / "delivery.png"
+    visual = diagram_dir / "visual.svg"
+    report = {
+        "status": "passed",
+        "backend": "test",
+        "pixel_ratio": 2,
+        "logical_dimensions": [260, 120],
+        "expected_dimensions": [520, 240],
+        "actual_dimensions": [520, 240],
+        "visual_svg_sha256": hashlib.sha256(visual.read_bytes()).hexdigest(),
+        "delivery_png_sha256": hashlib.sha256(delivery.read_bytes()).hexdigest(),
+        "errors": [],
+    }
+    (diagram_dir / "delivery_render_report.json").write_text(
+        json.dumps(report), encoding="utf-8"
     )
 
 
@@ -477,6 +497,17 @@ def test_lock_requires_delivery_target_and_layout_selection_reason() -> None:
     assert report["status"] == "failed"
     assert any("delivery_target" in error for error in report["errors"])
     assert any("selection_reason" in error for error in report["errors"])
+
+
+def test_lock_validates_high_density_raster_contract() -> None:
+    lock = _architecture_lock()
+    lock["raster_delivery"] = {"format": "png", "pixel_ratio": 1}
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("pixel_ratio" in error for error in report["errors"])
+
+    lock["raster_delivery"]["pixel_ratio"] = 2
+    assert validate_lock(lock)["status"] == "passed"
 
 
 def test_lock_rejects_dense_overview_layout() -> None:
@@ -841,6 +872,35 @@ def test_build_check_report_requires_target_size_preview(tmp_path: Path) -> None
     report = build_check_report(diagram_dir)
     assert report["status"] == "failed"
     assert "preview" in report["failed_checks"]
+
+
+def test_build_check_report_requires_declared_high_density_delivery(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    lock_path = diagram_dir / "diagram_lock.yaml"
+    lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+    lock["raster_delivery"] = {"format": "png", "pixel_ratio": 2}
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+
+    report = build_check_report(diagram_dir)
+    assert report["status"] == "failed"
+    assert "raster_delivery" in report["failed_checks"]
+
+    _write_png(diagram_dir / "delivery.png", 520, 240)
+    _write_delivery_render_report(diagram_dir)
+    delivery_report = validate_delivery_raster(
+        lock,
+        diagram_dir / "visual.svg",
+        diagram_dir / "delivery.png",
+        render_report_path=diagram_dir / "delivery_render_report.json",
+    )
+    assert delivery_report["status"] == "passed"
+    assert raster_dimensions(lock, diagram_dir / "visual.svg") == (520, 240, 2)
+    assert build_check_report(diagram_dir)["status"] == "passed"
+
+    (diagram_dir / "delivery.png").write_bytes(
+        (diagram_dir / "delivery.png").read_bytes() + b"stale"
+    )
+    assert build_check_report(diagram_dir)["status"] == "failed"
 
 
 def test_preview_review_is_bound_to_current_preview(tmp_path: Path) -> None:

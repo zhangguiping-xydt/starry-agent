@@ -9,6 +9,7 @@ from typing import Any
 
 try:
     from common import read_yaml, write_json
+    from render_delivery_raster import validate_delivery_raster
     from render_preview import validate_preview
     from validate_diagram_lock import validate_lock_file
     from validate_preview_review import validate_preview_review
@@ -19,6 +20,7 @@ except ModuleNotFoundError:
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import read_yaml, write_json
+    from render_delivery_raster import validate_delivery_raster
     from render_preview import validate_preview
     from validate_diagram_lock import validate_lock_file
     from validate_preview_review import validate_preview_review
@@ -65,6 +67,8 @@ def build_check_report(
     semantic_path = diagram_dir / "semantic.svg"
     visual_path = diagram_dir / "visual.svg"
     preview_path = diagram_dir / "preview.png"
+    delivery_path = diagram_dir / "delivery.png"
+    delivery_render_report_path = diagram_dir / "delivery_render_report.json"
     preview_review_path = diagram_dir / "preview_review.yaml"
 
     if lock_path.exists():
@@ -106,6 +110,18 @@ def build_check_report(
         preview_review_path,
         visual_path=visual_path,
     )
+    delivery_report = None
+    if isinstance(lock.get("raster_delivery"), dict):
+        delivery_report = (
+            validate_delivery_raster(
+                lock,
+                visual_path,
+                delivery_path,
+                render_report_path=delivery_render_report_path,
+            )
+            if lock_path.exists() and visual_path.exists()
+            else _missing_report("visual.svg or delivery.png", delivery_path)
+        )
     renderer_report = _read_json(diagram_dir / "render_report.json")
     if renderer_report is None:
         renderer_report = {
@@ -121,6 +137,8 @@ def build_check_report(
         "preview": preview_report,
         "preview_review": preview_review_report,
     }
+    if delivery_report is not None:
+        reports["raster_delivery"] = delivery_report
     failed_checks = sorted(
         name for name, report in reports.items() if report.get("status") != "passed"
     )
@@ -139,6 +157,7 @@ def build_check_report(
             "semantic_svg": _sha256(semantic_path),
             "visual_svg": _sha256(visual_path),
             "preview_png": _sha256(preview_path),
+            "delivery_png": _sha256(delivery_path),
             "preview_review": _sha256(preview_review_path),
         },
     }
@@ -148,6 +167,8 @@ def build_check_report(
     write_json(diagram_dir / "visual_report.json", visual_report)
     write_json(diagram_dir / "preview_report.json", preview_report)
     write_json(diagram_dir / "preview_review_report.json", preview_review_report)
+    if delivery_report is not None:
+        write_json(diagram_dir / "delivery_report.json", delivery_report)
     write_json(diagram_dir / "check_report.json", report)
     return report
 

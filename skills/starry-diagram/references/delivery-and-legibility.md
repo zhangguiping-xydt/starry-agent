@@ -22,6 +22,20 @@ delivery_target:
 
 Do not change `delivery_target` to make a failed diagram pass unless the real consumer viewport changed. Split or reflow the diagram instead.
 
+## Raster publication density
+
+The delivery viewport is measured in logical CSS pixels. It is not the same as the number of bitmap pixels used for publication. For destinations that rasterize uploads, do not reuse the 1× review preview as the final image. Add this optional lock block:
+
+```yaml
+raster_delivery:
+  format: png
+  pixel_ratio: 2
+```
+
+`pixel_ratio` must be an integer from 2 through 4. A 1200 × 675 logical viewport with `pixel_ratio: 2` produces a 2400 × 1350 `delivery.png`, while the diagram is still reviewed at 1200 × 675. The embedding HTML or destination metadata must preserve the logical viewport; increasing bitmap pixels must not make the diagram occupy more page width.
+
+High-density raster delivery fixes edge and glyph sharpness on high-DPI screens. It does not fix undersized typography. If the 1× target-size preview is hard to read, reflow, enlarge typography, or split the diagram before rendering the publication bitmap.
+
 ## Typography roles
 
 Use the complete scale from the selected style:
@@ -85,3 +99,12 @@ python scripts/render_preview.py diagram_lock.yaml visual.svg preview.png \
 ```
 
 Inspect the PNG at 100% using `technical-visual-review.md`, bind `preview_review.yaml` to both the PNG and `visual.svg` SHA-256 values, and validate the review. Then run `build_check_report.py`. It independently checks PNG dimensions and fails when the preview is absent, does not match `delivery_target`, or has a stale/failed technical review.
+
+When `raster_delivery` is declared, render the high-density publication artifact only after the target-size review passes:
+
+```bash
+python scripts/render_delivery_raster.py diagram_lock.yaml visual.svg delivery.png \
+  --report delivery_render_report.json
+```
+
+`build_check_report.py` fails if the declared `delivery.png` is missing, its dimensions do not equal the logical delivery target multiplied by `pixel_ratio`, or its render-report hashes do not match the current `visual.svg` and `delivery.png`.

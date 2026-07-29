@@ -8,6 +8,7 @@ from typing import Any
 
 try:
     from common import read_yaml, write_json
+    from render_delivery_raster import validate_delivery_raster
     from validate_diagram_manifest import validate_manifest_file
     from validate_preview_review import validate_preview_review
 except ModuleNotFoundError:
@@ -15,6 +16,7 @@ except ModuleNotFoundError:
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import read_yaml, write_json
+    from render_delivery_raster import validate_delivery_raster
     from validate_diagram_manifest import validate_manifest_file
     from validate_preview_review import validate_preview_review
 
@@ -93,10 +95,19 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
     visual_svg = diagram_dir / "visual.svg"
     semantic_svg = diagram_dir / "semantic.svg"
     preview_png = diagram_dir / "preview.png"
+    delivery_png = diagram_dir / "delivery.png"
     preview_review = diagram_dir / "preview_review.yaml"
     warnings: list[str] = []
     check_report_path = diagram_dir / "check_report.json"
     check_status = "missing"
+    raster_delivery_required = False
+    lock_path = diagram_dir / "diagram_lock.yaml"
+    if lock_path.exists():
+        try:
+            lock = read_yaml(lock_path)
+            raster_delivery_required = isinstance(lock.get("raster_delivery"), dict)
+        except (OSError, ValueError):
+            warnings.append(f"{directory}: diagram_lock.yaml could not be read")
     if check_report_path.exists():
         try:
             check_report = json.loads(check_report_path.read_text(encoding="utf-8"))
@@ -133,6 +144,26 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
     )
     if review_report["status"] != "passed":
         warnings.append(f"{directory}: preview review missing, stale, or failed")
+    delivery_status = "not_requested"
+    if raster_delivery_required:
+        if not visual_svg.exists():
+            delivery_status = "failed"
+            warnings.append(f"{directory}: visual.svg missing for raster delivery validation")
+        elif delivery_png.exists():
+            delivery_report = validate_delivery_raster(
+                lock,
+                visual_svg,
+                delivery_png,
+                render_report_path=diagram_dir / "delivery_render_report.json",
+            )
+            delivery_status = delivery_report["status"]
+            if delivery_status == "passed":
+                lines.extend(["高像素密度交付图：[delivery.png](./delivery.png)", ""])
+            else:
+                warnings.append(f"{directory}: delivery.png is stale or invalid")
+        else:
+            delivery_status = "missing"
+            warnings.append(f"{directory}: delivery.png missing for raster delivery target")
     lines.extend([f"源码：[{source_file}](./{source_file})", ""])
 
     diagram_dir.mkdir(parents=True, exist_ok=True)
@@ -145,6 +176,8 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
         "image": image_file,
         "preview": "preview.png" if preview_png.exists() else None,
         "preview_review_status": review_report["status"],
+        "delivery": "delivery.png" if delivery_png.exists() else None,
+        "delivery_status": delivery_status,
         "source": source_file,
         "check_status": check_status,
         "warnings": warnings,
@@ -169,6 +202,7 @@ def build_embed_blocks(diagrams_root: Path) -> dict[str, Any]:
         if diagram["check_status"] != "passed"
         or diagram["preview"] is None
         or diagram["preview_review_status"] != "passed"
+        or diagram["delivery_status"] in {"missing", "failed"}
     ]
     if failed_diagrams:
         warnings.append("diagram quality checks not passed: " + ", ".join(failed_diagrams))

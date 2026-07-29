@@ -11,7 +11,7 @@ Create trustworthy diagram packs from source material. The semantic source is tr
 
 ## Mandatory Pipeline
 
-Source intake → Diagram Strategist → type/layout selection and complexity gate → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → Semantic quality gate → Visual track → geometry/legibility quality gate → target-size preview → technical visual review and revision loop → `embed.md` and reports.
+Source intake → Diagram Strategist → type/layout selection and complexity gate → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → Semantic quality gate → Visual track → geometry/legibility quality gate → target-size preview → technical visual review and revision loop → optional high-density raster delivery → `embed.md` and reports.
 
 Execute every gate with the bundled scripts. A written claim that a gate passed is not sufficient.
 
@@ -33,7 +33,7 @@ Run `python scripts/validate_diagram_manifest.py <diagram_manifest.yaml> --root 
 
 ## Required Artifacts
 
-Each generated diagram directory must contain `diagram_spec.md`, `diagram_lock.yaml`, `source.*`, `semantic.svg` or `render_unavailable`, `visual.svg` or `visual_failed`, `preview.png`, `preview_review.yaml`, `embed.md`, and `check_report.json`. The pack root must contain `diagram_manifest.yaml` and `diagram_pack_report.json`. Diagrams marked `skipped` or `needs_clarification` only require a manifest entry; do not create semantic source, SVG files, or a diagram directory for them unless the user explicitly asks for a diagnostic directory.
+Each generated diagram directory must contain `diagram_spec.md`, `diagram_lock.yaml`, `source.*`, `semantic.svg` or `render_unavailable`, `visual.svg` or `visual_failed`, `preview.png`, `preview_review.yaml`, `embed.md`, and `check_report.json`. When `raster_delivery` is present in the lock, it must also contain `delivery.png`, `delivery_render_report.json`, and `delivery_report.json`. The pack root must contain `diagram_manifest.yaml` and `diagram_pack_report.json`. Diagrams marked `skipped` or `needs_clarification` only require a manifest entry; do not create semantic source, SVG files, or a diagram directory for them unless the user explicitly asks for a diagnostic directory.
 
 ## Delivery and typography lock
 
@@ -73,6 +73,12 @@ python scripts/validate_preview_review.py preview.png preview_review.yaml --visu
 python scripts/build_check_report.py <diagram-directory>
 ```
 
+If the destination rasterizes images or does not reliably embed SVG, declare `raster_delivery` in the lock and render `delivery.png` after the preview review. `preview.png` remains the 1× consumer-size review artifact; `delivery.png` is a higher-pixel-density publication artifact and must never replace the target-size review.
+
+```bash
+python scripts/render_delivery_raster.py diagram_lock.yaml visual.svg delivery.png --report delivery_render_report.json
+```
+
 Only hand off a diagram whose generated `check_report.json` has `status: passed`.
 
 ## References
@@ -102,6 +108,7 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Omitting `data-text-role`, shrinking one label independently, or allowing text to overflow its node.
 - Treating `preview.png` as optional or hand-authoring a preview pass report.
 - Reviewing a zoomed SVG instead of the target-size PNG or leaving a stale preview-review hash.
+- Uploading the 1× `preview.png` as the final image on a high-DPI raster-only destination instead of declaring and rendering `raster_delivery`.
 - Leaving semantic items out of `primary_items`/regions or edges out of `edge_roles`.
 - Routing control links repeatedly across the primary flow instead of using a side rail or companion view.
 - Using a renderer or enhancement level that violates the selected type profile.

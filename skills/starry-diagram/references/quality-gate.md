@@ -13,8 +13,9 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 7. `render_preview.py diagram_lock.yaml visual.svg preview.png --report preview_render_report.json`
 8. Inspect `preview.png` at 100%, revise until the technical visual review passes, and write `preview_review.yaml`.
 9. `validate_preview_review.py preview.png preview_review.yaml`
-10. `build_check_report.py <diagram-directory>`
-11. `build_embed_blocks.py <pack-root>` only after every generated diagram passes.
+10. If `raster_delivery` is declared, `render_delivery_raster.py diagram_lock.yaml visual.svg delivery.png --report delivery_render_report.json`.
+11. `build_check_report.py <diagram-directory>`
+12. `build_embed_blocks.py <pack-root>` only after every generated diagram passes.
 
 ## Lock checks
 
@@ -72,6 +73,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - PNG dimensions exactly match `delivery_target`; derive height from viewBox when omitted.
 - `build_check_report.py` validates the PNG independently of the renderer report.
 - `preview_review.yaml` matches the current PNG and visual SVG hashes and every technical visual review check passes.
+- When `raster_delivery` is declared, `delivery.png` dimensions equal the logical target dimensions multiplied by `pixel_ratio`, and `delivery_render_report.json` binds it to the current `visual.svg`; it is not used as the target-size review artifact.
 
 ## Failure handling
 
@@ -85,5 +87,6 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 | Visual no-op at medium/strong | Fail visual gate and perform the required visual work |
 | Text overflow or undersized delivery text | Expand/reflow geometry, reroute downstream edges, or split the diagram |
 | Missing or wrong-size preview | Render `preview.png` at the locked delivery target and rebuild reports |
+| Missing or wrong-size raster delivery | Render `delivery.png` from `visual.svg` at the declared `pixel_ratio`; keep `preview.png` unchanged |
 | Stale or failed technical review | Inspect the current preview, revise the SVG, rerender, and rebind the review hash |
 | Pack contains a failed diagram | Fail diagram_pack_report; do not present the pack as passed |

@@ -34,6 +34,9 @@ delivery_target:
   min_text_padding_px: 6
   max_edge_label_distance_px: 28
   max_unmeasurable_text_fraction: 0
+raster_delivery:
+  format: png
+  pixel_ratio: 2
 nodes:
   - id: frontend-chat-entry
     label: 前端对话入口

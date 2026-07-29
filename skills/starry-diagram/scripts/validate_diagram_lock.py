@@ -227,6 +227,19 @@ def _validate_delivery_target(target: Any, errors: list[str]) -> None:
         )
 
 
+def _validate_raster_delivery(value: Any, errors: list[str]) -> None:
+    if value is None:
+        return
+    if not isinstance(value, Mapping):
+        errors.append("raster_delivery must be a mapping when provided")
+        return
+    if value.get("format") != "png":
+        errors.append("raster_delivery.format must be png")
+    pixel_ratio = value.get("pixel_ratio")
+    if not _is_int(pixel_ratio) or not 2 <= pixel_ratio <= 4:
+        errors.append("raster_delivery.pixel_ratio must be an int between 2 and 4")
+
+
 def _validate_visual_style(
     visual_style: Any,
     profile: dict[str, Any],
@@ -605,6 +618,7 @@ def validate_lock(
 
     _validate_canvas(lock.get("canvas"), errors, warnings)
     _validate_delivery_target(lock.get("delivery_target"), errors)
+    _validate_raster_delivery(lock.get("raster_delivery"), errors)
     _validate_visual_style(lock.get("visual_style"), profile, profiles_data, errors)
     _validate_style_tokens(lock.get("style_tokens"), errors)
     if isinstance(diagram_type, str):

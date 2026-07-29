@@ -9,7 +9,7 @@ from typing import Any
 
 try:
     from common import parse_viewbox, read_yaml, semantic_items, write_json
-    from notation import validate_lock_notation
+    from notation import contract_version, validate_lock_notation
     from profiles import (
         enhancement_rank,
         layout_for,
@@ -18,12 +18,13 @@ try:
         load_profiles,
         profile_for,
     )
+    from visual_identity import validate_diagram_treatment, validate_pack_identity
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import parse_viewbox, read_yaml, semantic_items, write_json
-    from notation import validate_lock_notation
+    from notation import contract_version, validate_lock_notation
     from profiles import (
         enhancement_rank,
         layout_for,
@@ -32,6 +33,7 @@ except ModuleNotFoundError:
         load_profiles,
         profile_for,
     )
+    from visual_identity import validate_diagram_treatment, validate_pack_identity
 
 
 _REQUIRED_TOP_LEVEL_KEYS = (
@@ -45,6 +47,7 @@ _REQUIRED_TOP_LEVEL_KEYS = (
     "delivery_target",
     "style_tokens",
 )
+_V4_REQUIRED_TOP_LEVEL_KEYS = ("pack_identity", "diagram_treatment")
 _EDGE_KINDS = {"command", "event", "data", "projection", "call"}
 _EDGE_LIKE_SEMANTIC_KINDS = {"edge", "message", "relationship", "transition"}
 _CONTAINER_SEMANTIC_KINDS = {"group", "lane"}
@@ -260,14 +263,17 @@ def _validate_visual_style(
     visual_style: Any,
     profile: dict[str, Any],
     profiles_data: dict[str, Any],
+    version: int,
     errors: list[str],
 ) -> None:
     if not isinstance(visual_style, Mapping):
         errors.append("visual_style must be a mapping")
         return
     style_id = visual_style.get("style_id")
-    if not isinstance(style_id, str) or not style_id:
+    if version < 4 and (not isinstance(style_id, str) or not style_id):
         errors.append("visual_style.style_id must be a non-empty string")
+    elif style_id is not None and (not isinstance(style_id, str) or not style_id):
+        errors.append("visual_style.style_id must be non-empty when provided")
     level = visual_style.get("enhancement_level")
     actual_rank = enhancement_rank(level, profiles_data)
     minimum = profile.get("minimum_enhancement")
@@ -280,7 +286,7 @@ def _validate_visual_style(
         )
 
 
-def _validate_style_tokens(style_tokens: Any, errors: list[str]) -> None:
+def _validate_style_tokens(style_tokens: Any, version: int, errors: list[str]) -> None:
     if not isinstance(style_tokens, Mapping) or not style_tokens:
         errors.append("style_tokens must be a non-empty mapping")
         return
@@ -326,6 +332,36 @@ def _validate_style_tokens(style_tokens: Any, errors: list[str]) -> None:
                 "diagram_title_size >= group_title_size >= node_title_size >= "
                 "node_body_size >= edge_label_size >= annotation_size >= min_font_size"
             )
+    if version >= 4:
+        geometry = style_tokens.get("geometry")
+        if not isinstance(geometry, Mapping):
+            errors.append("style_tokens.geometry must be a mapping for contract v4")
+        else:
+            for field in (
+                "node_padding_x",
+                "node_padding_y",
+                "cluster_padding",
+                "node_gap",
+                "rank_gap",
+            ):
+                value = geometry.get(field)
+                if not _is_number(value) or value <= 0:
+                    errors.append(f"style_tokens.geometry.{field} must be positive")
+            radius = geometry.get("corner_radius")
+            if not _is_number(radius) or radius < 0:
+                errors.append("style_tokens.geometry.corner_radius must be non-negative")
+        connectors = style_tokens.get("connectors")
+        if not isinstance(connectors, Mapping):
+            errors.append("style_tokens.connectors must be a mapping for contract v4")
+        else:
+            for field in ("width", "arrow_size"):
+                value = connectors.get(field)
+                if not _is_number(value) or value <= 0:
+                    errors.append(f"style_tokens.connectors.{field} must be positive")
+            if not _non_empty_text(connectors.get("routing")):
+                errors.append("style_tokens.connectors.routing must be non-empty")
+        if not isinstance(style_tokens.get("strokes"), Mapping):
+            errors.append("style_tokens.strokes must be a mapping for contract v4")
 
 
 def _non_empty_text(value: Any) -> bool:
@@ -606,6 +642,7 @@ def validate_lock(
     profiles_data = profiles_data or load_profiles()
     layouts_data = layouts_data or load_layouts()
     notations_data = notations_data or load_notations()
+    version = contract_version(lock)
     raw_version = lock.get("contract_version")
     if raw_version is not None and (
         not isinstance(raw_version, int) or isinstance(raw_version, bool) or raw_version < 2
@@ -614,6 +651,10 @@ def validate_lock(
     for key in _REQUIRED_TOP_LEVEL_KEYS:
         if key not in lock:
             errors.append(f"missing required top-level key: {key}")
+    if version >= 4:
+        for key in _V4_REQUIRED_TOP_LEVEL_KEYS:
+            if key not in lock:
+                errors.append(f"missing required top-level key for contract v4: {key}")
 
     diagram_type = lock.get("type")
     profile = profile_for(diagram_type, profiles_data)
@@ -651,8 +692,23 @@ def validate_lock(
     _validate_canvas(lock.get("canvas"), errors, warnings)
     _validate_delivery_target(lock.get("delivery_target"), errors)
     _validate_raster_delivery(lock.get("raster_delivery"), errors)
-    _validate_visual_style(lock.get("visual_style"), profile, profiles_data, errors)
-    _validate_style_tokens(lock.get("style_tokens"), errors)
+    _validate_visual_style(
+        lock.get("visual_style"), profile, profiles_data, version, errors
+    )
+    _validate_style_tokens(lock.get("style_tokens"), version, errors)
+    identity_report: dict[str, Any] = {"checked": False, "contract_version": version}
+    treatment_report: dict[str, Any] = {"checked": False, "contract_version": version}
+    if version >= 4:
+        identity_report, identity_errors, identity_warnings = validate_pack_identity(
+            lock.get("pack_identity"), style_tokens=lock.get("style_tokens")
+        )
+        treatment_report, treatment_errors, treatment_warnings = validate_diagram_treatment(
+            lock.get("diagram_treatment"), diagram_type
+        )
+        errors.extend(identity_errors)
+        errors.extend(treatment_errors)
+        warnings.extend(identity_warnings)
+        warnings.extend(treatment_warnings)
     if isinstance(diagram_type, str):
         _validate_type_semantics(lock, diagram_type, errors, warnings)
     _validate_layout_plan(lock, profile, layouts_data, errors, warnings)
@@ -676,6 +732,8 @@ def validate_lock(
         "errors": errors,
         "warnings": warnings,
         "notation": notation_report,
+        "pack_identity": identity_report,
+        "diagram_treatment": treatment_report,
     }
 
 

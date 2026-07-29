@@ -1,5 +1,13 @@
 id: product-soft
-colors:
+visual_behavior:
+  mode: preset
+  preset_id: product-soft
+  description: Approachable technical language for onboarding and product operations without losing notation fidelity.
+  shape_language: Soft containers for ordinary steps while decisions, states, stores, and lifelines keep native shapes.
+  whitespace_rhythm: Open spacing, shorter rows, and clearly separated explanatory regions.
+  decoration: Gentle grouping and restrained highlights; avoid card grids unrelated to technical structure.
+  elevation: Flat-to-subtle hierarchy; shadows are off by default.
+palette:
   background: "#fff7ed"
   surface: "#ffffff"
   primary: "#f97316"
@@ -22,8 +30,18 @@ geometry:
   cluster_padding: 28
   node_gap: 40
   rank_gap: 68
-  corner_radius: 8
+  corner_radius: 12
 connectors:
-  width: 1.6
+  width: 1.8
   arrow_size: 7
   routing: orthogonal
+stroke_language:
+  node_width: 1.4
+  boundary_width: 1.2
+  connector_width: 1.8
+  emphasis_width: 2.6
+  linecap: round
+  linejoin: round
+texture:
+  mode: none
+  description: Flat warm field with no paper grain, glow, or decorative pattern.

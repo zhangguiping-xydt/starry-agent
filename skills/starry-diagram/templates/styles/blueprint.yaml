@@ -1,5 +1,13 @@
 id: blueprint
-colors:
+visual_behavior:
+  mode: preset
+  preset_id: blueprint
+  description: Engineering-drawing behavior with schematic boundaries, construction lines, and annotations.
+  shape_language: Sharp technical geometry, square corners, explicit containers, and measured callouts.
+  whitespace_rhythm: Regular drafting-grid rhythm with aligned labels and deliberate margin bands.
+  decoration: Sparse construction marks only when they improve reading or scale orientation.
+  elevation: Flat ink-on-field hierarchy; no floating panels or soft shadows.
+palette:
   background: "#0b1f3a"
   surface: "#102a4c"
   primary: "#60a5fa"
@@ -22,8 +30,18 @@ geometry:
   cluster_padding: 28
   node_gap: 40
   rank_gap: 68
-  corner_radius: 8
+  corner_radius: 0
 connectors:
-  width: 1.6
+  width: 1.4
   arrow_size: 7
   routing: orthogonal
+stroke_language:
+  node_width: 1.2
+  boundary_width: 1.0
+  connector_width: 1.4
+  emphasis_width: 2.0
+  linecap: square
+  linejoin: miter
+texture:
+  mode: drafting-grid
+  description: A restrained drafting grid may appear in empty background regions, never behind labels.

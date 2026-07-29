@@ -26,7 +26,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Type-specific semantic sections exist and are internally valid.
 - Fixed canvas dimensions and viewBox agree; auto canvas bounds are valid.
 - Delivery target defines the actual embedding viewport and legibility thresholds.
-- Technical style defines required colors, font family, and every typography role.
+- Contract v4 defines pack visual behavior separately from palette, typography, stroke language, and texture; resolved style tokens exactly match the pack identity.
 - Layout selection has a source-grounded reason after Pick/Skip/Alternative evaluation.
 - Contract v3 locks declare viewpoint, reading question, notation profile, and valid notation roles.
 - Layout-specific notation signatures exist, such as a decision in a branching flow or a boundary in a layered architecture.
@@ -41,6 +41,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Generated entry layout pattern matches diagram_lock.yaml.
 - Contract v3 generated entries declare distinct reading questions and compatible viewpoint/notation profiles.
 - Repeated pack viewpoints or visual signatures have a source-grounded diversity reason only when no fact-complete alternative exists.
+- Every generated v4 diagram declares a renderer family equal to its technical type and a per-diagram treatment.
 
 ## Semantic checks
 
@@ -54,6 +55,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - SVG parses and its canvas follows the lock.
 - Required labels remain visible.
 - Colors and fonts come from style_tokens.
+- SVG root identity metadata and actual stroke widths/caps/joins match the v4 pack identity.
 - Every visible text element declares a locked `data-text-role` and uses that role's exact size.
 - No text falls below the minimum effective font size after scaling into the delivery viewport.
 - Every semantic id is present exactly once through stable metadata or a supported renderer id.
@@ -88,6 +90,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 | Missing source facts | Mark skipped or needs_clarification in manifest |
 | Invalid profile, routing, or lock | Stop before semantic source generation |
 | Repeated viewpoint or visual signature | Select a fact-complete alternate view, split companion views, or record why repetition is unavoidable |
+| Three or more technical types collapse into one rounded-card signature | Use type-native renderers; use `visual_diversity_reason` only when the source truly prevents a distinct technical treatment |
 | Notation role or geometry mismatch | Use the selected technical symbol; metadata-only relabeling is not a fix |
 | Semantic mismatch | Fail semantic gate; do not render |
 | Renderer unavailable | Write render_unavailable and a failed check report |

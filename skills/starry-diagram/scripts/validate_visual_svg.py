@@ -32,6 +32,7 @@ try:
         profile_for,
     )
     from visual_geometry import analyze_visual_geometry
+    from visual_identity import analyze_visual_identity
     from visual_legibility import analyze_visual_legibility
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
@@ -60,6 +61,7 @@ except ModuleNotFoundError:
         profile_for,
     )
     from visual_geometry import analyze_visual_geometry
+    from visual_identity import analyze_visual_identity
     from visual_legibility import analyze_visual_legibility
 
 
@@ -376,6 +378,11 @@ def validate_visual(
     )
     errors.extend(notation_errors)
     warnings.extend(notation_warnings)
+    identity_style_report, identity_style_errors, identity_style_warnings = (
+        analyze_visual_identity(lock, root)
+    )
+    errors.extend(identity_style_errors)
+    warnings.extend(identity_style_warnings)
     change_report = _validate_visual_change(
         lock,
         svg_path,
@@ -437,6 +444,7 @@ def validate_visual(
             "typography": typography_report,
             "semantic_identity": identity_report,
             "notation": notation_report,
+            "visual_identity": identity_style_report,
             "visual_change": change_report,
             "geometry": geometry_report,
             "legibility": legibility_report,

@@ -40,7 +40,7 @@ The font stack must name at least one real, non-generic family before the generi
 
 ## Typography roles
 
-Use the complete scale from the selected style:
+Use the complete scale from the locked pack identity or selected preset:
 
 ```yaml
 typography:

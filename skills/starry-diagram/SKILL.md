@@ -11,13 +11,13 @@ Create trustworthy diagram packs from source material. The semantic source is tr
 
 ## Mandatory Pipeline
 
-Source intake → Diagram Strategist → type/viewpoint/layout/notation selection and complexity/diversity gate → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → Semantic quality gate → Visual track → notation/geometry/legibility quality gate → target-size preview → technical visual review and revision loop → optional high-density raster delivery → `embed.md` and reports.
+Source intake → Diagram Strategist → type/viewpoint/layout/notation selection and complexity/diversity gate → pack identity and per-diagram treatment lock → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → Semantic quality gate → type-native Visual track → notation/identity/geometry/legibility quality gate → target-size preview → technical visual review and revision loop → optional high-density raster delivery → `embed.md` and reports.
 
 Execute every gate with the bundled scripts. A written claim that a gate passed is not sufficient.
 
 ## Default diagram-pack mode
 
-When the user does not specify a diagram type, evaluate architecture/business-architecture/flow/swimlane/sequence/er/state/data-flow/deployment/component/event-flow/concept. Each candidate status must be one of generated/skipped/needs_clarification with a source-grounded reason. New packs use `contract_version: 3`; every generated entry declares a distinct `reading_question`, a source-grounded `viewpoint_family`, and a compatible `notation_profile`.
+When the user does not specify a diagram type, evaluate architecture/business-architecture/flow/swimlane/sequence/er/state/data-flow/deployment/component/event-flow/concept. Each candidate status must be one of generated/skipped/needs_clarification with a source-grounded reason. New packs use `contract_version: 4`; every generated entry declares a distinct `reading_question`, a source-grounded `viewpoint_family`, a compatible `notation_profile`, and a type-native `diagram_treatment`.
 
 ## Fact gate
 
@@ -29,6 +29,12 @@ Before creating a generated entry, read `templates/profiles/diagram_profiles.yam
 
 For packs with four or more generated diagrams, evaluate viewpoint and visual-signature repetition before writing locks. Do not force an inapplicable type to satisfy diversity. When the source genuinely supports only repeated views, record `diversity_reason`; otherwise select distinct eligible viewpoints or split overview/detail companion views.
 
+## Visual identity gate
+
+Read `references/visual-identity.md` before selecting or customizing appearance. Lock one `pack_identity` for family consistency, then give each generated diagram a `diagram_treatment` whose `renderer_family` equals its technical type. Presets are editable starting points, not a closed style list; use `visual_behavior.mode: custom` for behavior that no preset captures.
+
+Keep `style_tokens` as resolved deterministic values and validate that their colors, typography, and strokes match the pack identity. Before drawing each diagram, re-read the pack identity and the diagram's treatment. Share tokens and measurement helpers across renderers, but do not route different technical types through one generic card or `svg_node()` implementation.
+
 If a candidate exceeds the selected layout pattern's section or total-item limits, split it into overview/detail or separate concern diagrams before creating the lock. Only an explicit user-approved `layout_plan.complexity_exception` may keep an over-budget single diagram.
 
 Run `python scripts/validate_diagram_manifest.py <diagram_manifest.yaml> --root <pack-root>` and `python scripts/validate_diagram_lock.py <diagram_lock.yaml>` before writing semantic source. Do not continue after a failed manifest or lock.
@@ -39,7 +45,7 @@ Each generated diagram directory must contain `diagram_spec.md`, `diagram_lock.y
 
 ## Delivery and typography lock
 
-Lock the real embedding viewport before layout. Read `references/delivery-and-legibility.md`, define `delivery_target`, and copy a complete role-based typography scale from the selected style. Judge font size, padding, label anchoring, and contrast after scaling the SVG into that viewport.
+Lock the real embedding viewport before layout. Read `references/delivery-and-legibility.md`, define `delivery_target`, and copy a complete role-based typography scale from the locked pack identity or selected preset. Judge font size, padding, label anchoring, and contrast after scaling the SVG into that viewport.
 
 Treat typography as geometry. Keep each role size stable. When text does not fit, expand the node, reflow its lines, recompute neighboring geometry, and reroute downstream edges. Never shrink a role, enlarge the canvas, or hide text to pass the gate.
 
@@ -60,6 +66,8 @@ Every semantic visual group must declare `data-diagram-id` and `data-diagram-kin
 For medium and strong enhancement, visual.svg must contain a real geometric or typographic improvement. Copying semantic.svg or changing metadata only is a failed visual stage.
 
 Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. Keep loopbacks and control links on outer rails or shared buses. Put `data-text-role` on every visible `<text>`. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unsupported geometry coverage, overlong routes, node/text collisions, text overflow, role-size drift, low effective delivery size, weak contrast, and ambiguous edge-label anchoring.
+
+For contract v4, put `data-pack-identity`, `data-renderer-family`, and `data-composition-rhythm` on the SVG root. Use only the permitted stroke widths, caps, and joins from `pack_identity.stroke_language`. The pack gate rejects repeated rounded-card signatures across distinct technical types unless the manifest records a source-grounded `visual_diversity_reason`.
 
 Run:
 
@@ -93,7 +101,8 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - `references/diagram-types/<type>.md` for the selected diagram type.
 - `references/strategist.md` for diagram pack planning and locks.
 - `references/layout-planning.md` for the layout-plan schema and construction order.
-- `references/technical-notation.md` for contract v3, pack diversity, notation roles, and compatibility.
+- `references/technical-notation.md` for v3+ pack diversity, notation roles, and compatibility.
+- `references/visual-identity.md` for contract v4 pack identity, custom visual behavior, per-type treatment, and visual-signature gates.
 - `references/delivery-and-legibility.md` for delivery viewport, typography roles, and text geometry.
 - `references/technical-visual-review.md` for the mandatory target-size review and revision loop.
 - `references/semantic-executor.md` for Mermaid/PlantUML/Graphviz/source routing.

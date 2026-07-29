@@ -19,6 +19,11 @@ try:
         notation_for,
         profile_for,
     )
+    from visual_identity import (
+        treatment_signature,
+        validate_diagram_treatment,
+        validate_pack_identity,
+    )
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
@@ -33,6 +38,11 @@ except ModuleNotFoundError:
         load_profiles,
         notation_for,
         profile_for,
+    )
+    from visual_identity import (
+        treatment_signature,
+        validate_diagram_treatment,
+        validate_pack_identity,
     )
 
 
@@ -143,12 +153,18 @@ def _validate_generated_entry(
                     f"diagram {entry_id} notation_profile {notation_name!r} "
                     f"does not support viewpoint {viewpoint!r}"
                 )
+    if version >= 4:
+        _, treatment_errors, _ = validate_diagram_treatment(
+            entry.get("diagram_treatment"), entry.get("type")
+        )
+        errors.extend(f"diagram {entry_id} {error}" for error in treatment_errors)
 
 
 def _validate_lock_consistency(
     entry: Mapping[str, Any],
     root: Path,
     manifest_version: int,
+    manifest_identity: Any,
     errors: list[str],
 ) -> None:
     entry_id = str(entry.get("id", "<missing>"))
@@ -170,6 +186,11 @@ def _validate_lock_consistency(
             f"diagram {entry_id} manifest contract_version {manifest_version} "
             f"requires a v3 lock, got {lock_version}"
         )
+    if manifest_version >= 4 and lock_version < 4:
+        errors.append(
+            f"diagram {entry_id} manifest contract_version {manifest_version} "
+            f"requires a v4 lock, got {lock_version}"
+        )
     comparisons = {
         "id": lock.get("id"),
         "type": lock.get("type"),
@@ -190,6 +211,12 @@ def _validate_lock_consistency(
         comparisons["layout_pattern"] = layout_plan.get("pattern")
         if "layout_reason" in entry or layout_plan.get("reason") is not None:
             comparisons["layout_reason"] = layout_plan.get("reason")
+    if manifest_version >= 4:
+        comparisons["diagram_treatment"] = lock.get("diagram_treatment")
+        if lock.get("pack_identity") != manifest_identity:
+            errors.append(
+                f"diagram {entry_id} lock pack_identity does not match manifest pack_identity"
+            )
     for field, lock_value in comparisons.items():
         entry_value = entry.get(field)
         if entry_value != lock_value:
@@ -221,7 +248,12 @@ def validate_manifest(
     if version < 3:
         warnings.append(
             "legacy diagram manifest does not enforce viewpoint diversity; "
-            "use contract_version: 3 for new diagram packs"
+            "use contract_version: 4 for new diagram packs"
+        )
+    elif version < 4:
+        warnings.append(
+            "contract v3 does not enforce pack identity or per-type renderer families; "
+            "use contract_version: 4 for new diagram packs"
         )
 
     for field in ("project", "mode", "source_summary"):
@@ -229,6 +261,13 @@ def validate_manifest(
             errors.append(f"manifest {field} must be a non-empty string")
     if manifest.get("mode") != "diagram-pack":
         errors.append("manifest mode must be diagram-pack")
+    identity_report: dict[str, Any] = {"checked": False, "contract_version": version}
+    if version >= 4:
+        identity_report, identity_errors, identity_warnings = validate_pack_identity(
+            manifest.get("pack_identity")
+        )
+        errors.extend(identity_errors)
+        warnings.extend(identity_warnings)
 
     diagrams = manifest.get("diagrams")
     if not isinstance(diagrams, list) or not diagrams:
@@ -248,7 +287,11 @@ def validate_manifest(
             errors.append(f"duplicate manifest diagram id: {entry_id}")
         seen_ids.add(entry_id)
 
-        for field in ("title", "reason", "style_id"):
+        required_entry_fields = ("title", "reason", "style_id") if version < 4 else (
+            "title",
+            "reason",
+        )
+        for field in required_entry_fields:
             if not _text(entry.get(field)):
                 errors.append(f"diagram {entry_id} {field} must be a non-empty string")
         source_refs = entry.get("source_refs")
@@ -275,7 +318,13 @@ def validate_manifest(
                 errors,
             )
             if root is not None:
-                _validate_lock_consistency(entry, root, version, errors)
+                _validate_lock_consistency(
+                    entry,
+                    root,
+                    version,
+                    manifest.get("pack_identity"),
+                    errors,
+                )
         elif status in {"skipped", "needs_clarification"}:
             missing = entry.get("missing")
             if not isinstance(missing, list) or not missing:
@@ -297,6 +346,11 @@ def validate_manifest(
         str(entry.get("notation_profile"))
         for entry in generated
         if _text(entry.get("notation_profile"))
+    )
+    treatment_counts = Counter(
+        signature
+        for entry in generated
+        if (signature := treatment_signature(entry.get("diagram_treatment"))) is not None
     )
     signatures = Counter(
         "|".join(
@@ -350,12 +404,14 @@ def validate_manifest(
             if dominant_viewpoint
             else None
         ),
+        "treatment_counts": dict(sorted(treatment_counts.items())),
     }
     return {
         "status": "failed" if errors else "passed",
         "errors": errors,
         "warnings": warnings,
         "contract_version": version,
+        "pack_identity": identity_report,
         "diversity": diversity,
     }
 

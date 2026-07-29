@@ -1,5 +1,13 @@
 id: clean-technical
-colors:
+visual_behavior:
+  mode: preset
+  preset_id: clean-technical
+  description: Precise, restrained engineering language with topology and notation ahead of decoration.
+  shape_language: Low-radius geometry with explicit technical symbols and boundaries.
+  whitespace_rhythm: Structured spacing with compact primary paths and clear boundary gaps.
+  decoration: Semantic titles and emphasis only; no ornamental cards, imagery, or shadows.
+  elevation: Flat hierarchy expressed through stroke weight and luminance.
+palette:
   background: "#f8fafc"
   surface: "#ffffff"
   primary: "#2563eb"
@@ -22,8 +30,18 @@ geometry:
   cluster_padding: 28
   node_gap: 40
   rank_gap: 68
-  corner_radius: 8
+  corner_radius: 4
 connectors:
   width: 1.6
   arrow_size: 7
   routing: orthogonal
+stroke_language:
+  node_width: 1.4
+  boundary_width: 1.2
+  connector_width: 1.6
+  emphasis_width: 2.4
+  linecap: round
+  linejoin: round
+texture:
+  mode: none
+  description: Flat solid fields without grain, grid, glow, or paper texture.

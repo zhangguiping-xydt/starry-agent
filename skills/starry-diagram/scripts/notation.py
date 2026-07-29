@@ -67,7 +67,7 @@ def validate_lock_notation(
     if version < 3:
         warnings.append(
             "legacy diagram contract does not enforce viewpoint and notation roles; "
-            "use contract_version: 3 for new diagrams"
+            "use contract_version: 4 for new diagrams"
         )
         return {"checked": False, "contract_version": version}, errors, warnings
 
@@ -75,11 +75,11 @@ def validate_lock_notation(
     reading_question = lock.get("reading_question")
     notation_name = lock.get("notation_profile")
     if not _text(viewpoint):
-        errors.append("viewpoint_family must be a non-empty string for contract v3")
+        errors.append("viewpoint_family must be a non-empty string for contract v3+")
     if not _text(reading_question):
-        errors.append("reading_question must be a non-empty string for contract v3")
+        errors.append("reading_question must be a non-empty string for contract v3+")
     if not _text(notation_name):
-        errors.append("notation_profile must be a non-empty string for contract v3")
+        errors.append("notation_profile must be a non-empty string for contract v3+")
         return {"checked": True, "contract_version": version}, errors, warnings
 
     allowed_viewpoints = profile.get("allowed_viewpoint_families", [])
@@ -118,7 +118,7 @@ def validate_lock_notation(
         role = record["role"]
         if not role:
             errors.append(
-                f"{record['section']} {record['id']} must define notation_role for contract v3"
+                f"{record['section']} {record['id']} must define notation_role for contract v3+"
             )
         elif role not in allowed:
             errors.append(

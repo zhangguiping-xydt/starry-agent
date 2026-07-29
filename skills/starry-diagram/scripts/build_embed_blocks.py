@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter, defaultdict
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 try:
     from common import read_yaml, write_json
+    from notation import contract_version
     from render_delivery_raster import validate_delivery_raster
     from validate_diagram_manifest import validate_manifest_file
     from validate_preview_review import validate_preview_review
@@ -16,6 +19,7 @@ except ModuleNotFoundError:
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import read_yaml, write_json
+    from notation import contract_version
     from render_delivery_raster import validate_delivery_raster
     from validate_diagram_manifest import validate_manifest_file
     from validate_preview_review import validate_preview_review
@@ -100,6 +104,7 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
     warnings: list[str] = []
     check_report_path = diagram_dir / "check_report.json"
     check_status = "missing"
+    visual_identity: dict[str, Any] = {"checked": False}
     raster_delivery_required = False
     lock_path = diagram_dir / "diagram_lock.yaml"
     if lock_path.exists():
@@ -113,6 +118,18 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
             check_report = json.loads(check_report_path.read_text(encoding="utf-8"))
             if isinstance(check_report, dict):
                 check_status = str(check_report.get("status", "unknown"))
+                checks = check_report.get("checks", {})
+                visual_check = checks.get("visual", {}) if isinstance(checks, Mapping) else {}
+                visual_details = (
+                    visual_check.get("visual", {}) if isinstance(visual_check, Mapping) else {}
+                )
+                candidate = (
+                    visual_details.get("visual_identity", {})
+                    if isinstance(visual_details, Mapping)
+                    else {}
+                )
+                if isinstance(candidate, dict):
+                    visual_identity = candidate
         except (OSError, json.JSONDecodeError):
             check_status = "invalid"
 
@@ -180,12 +197,71 @@ def build_embed_for_diagram(root: Path, entry: dict[str, Any]) -> dict[str, Any]
         "delivery_status": delivery_status,
         "source": source_file,
         "check_status": check_status,
+        "type": entry.get("type"),
+        "visual_identity": visual_identity,
         "warnings": warnings,
+    }
+
+
+def analyze_pack_visual_identity(
+    diagrams: list[dict[str, Any]],
+    manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    signature_counts: Counter[str] = Counter()
+    signature_diagrams: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    identity_counts: Counter[str] = Counter()
+    for diagram in diagrams:
+        identity = diagram.get("visual_identity", {})
+        if not isinstance(identity, Mapping) or identity.get("checked") is not True:
+            continue
+        signature = identity.get("signature")
+        if isinstance(signature, str) and signature:
+            signature_counts[signature] += 1
+            signature_diagrams[signature].append(diagram)
+        identity_id = identity.get("pack_identity")
+        if isinstance(identity_id, str) and identity_id:
+            identity_counts[identity_id] += 1
+
+    suspicious_card_signatures: dict[str, dict[str, Any]] = {}
+    if contract_version(manifest) >= 4 and len(diagrams) >= 4:
+        for signature, records in signature_diagrams.items():
+            diagram_types = sorted(
+                {str(record.get("type")) for record in records if record.get("type")}
+            )
+            if (
+                len(records) > 2
+                and len(diagram_types) >= 3
+                and all(
+                    isinstance(record.get("visual_identity"), Mapping)
+                    and record["visual_identity"].get("card_like") is True
+                    for record in records
+                )
+            ):
+                suspicious_card_signatures[signature] = {
+                    "count": len(records),
+                    "diagram_types": diagram_types,
+                    "diagram_ids": [record.get("id") for record in records],
+                }
+    reason = manifest.get("visual_diversity_reason")
+    errors: list[str] = []
+    if suspicious_card_signatures and not (
+        isinstance(reason, str) and bool(reason.strip())
+    ):
+        errors.append(
+            "multiple technical diagram types share one rounded-card visual signature; "
+            "use type-native renderers or provide a source-grounded visual_diversity_reason"
+        )
+    return {
+        "pack_identity_counts": dict(sorted(identity_counts.items())),
+        "actual_signature_counts": dict(sorted(signature_counts.items())),
+        "suspicious_card_signatures": suspicious_card_signatures,
+        "errors": errors,
     }
 
 
 def build_embed_blocks(diagrams_root: Path) -> dict[str, Any]:
     manifest_path = diagrams_root / "diagram_manifest.yaml"
+    manifest = read_yaml(manifest_path) if manifest_path.exists() else {}
     manifest_report = (
         validate_manifest_file(manifest_path, root=diagrams_root)
         if manifest_path.exists()
@@ -207,11 +283,19 @@ def build_embed_blocks(diagrams_root: Path) -> dict[str, Any]:
     ]
     if failed_diagrams:
         warnings.append("diagram quality checks not passed: " + ", ".join(failed_diagrams))
-    pack_failed = bool(failed_diagrams) or manifest_report["status"] != "passed"
+    visual_identity_report = analyze_pack_visual_identity(diagrams, manifest)
+    identity_errors = visual_identity_report["errors"]
+    warnings.extend(identity_errors)
+    pack_failed = (
+        bool(failed_diagrams)
+        or manifest_report["status"] != "passed"
+        or bool(identity_errors)
+    )
     report = {
         "status": "failed" if pack_failed else ("passed_with_warnings" if warnings else "passed"),
         "manifest": manifest_report,
         "diversity": manifest_report.get("diversity", {}),
+        "visual_identity": visual_identity_report,
         "diagrams": diagrams,
         "warnings": warnings,
     }

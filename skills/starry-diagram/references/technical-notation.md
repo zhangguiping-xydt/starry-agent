@@ -1,6 +1,6 @@
 # Technical Notation Contract
 
-Use contract version 3 for every new diagram pack. The contract separates visual style from technical notation: diagrams may share typography and colors, but their geometry must remain recognizable as the locked technical type.
+Contract version 3 introduced executable viewpoint and notation roles. Use contract version 4 for new diagram packs; it retains those rules and adds pack identity, custom visual behavior, per-type treatments, and actual visual-signature checks. Diagrams may share palette, typography, and stroke language, but their geometry must remain recognizable as the locked technical type.
 
 ## Manifest fields
 
@@ -18,7 +18,7 @@ The diversity gate never overrides the fact gate. Do not create an ER, deploymen
 
 ## Lock fields
 
-Copy the manifest viewpoint, reading question, and notation profile into `diagram_lock.yaml`. Every generated entry in a v3 manifest must point to a v3 lock; mixing a v3 pack with a legacy v2 lock is invalid because it would bypass notation enforcement. Add `notation_role` to every semantic record covered by the notation profile:
+Copy the manifest viewpoint, reading question, and notation profile into `diagram_lock.yaml`. Every generated entry in a v3-or-newer manifest must point to a lock with at least the same contract version; mixing it with a legacy v2 lock is invalid because it would bypass notation enforcement. Add `notation_role` to every semantic record covered by the notation profile:
 
 ```yaml
 nodes:
@@ -45,4 +45,4 @@ Every locked notation role must appear on the corresponding semantic SVG group:
 
 ## Compatibility
 
-Legacy v2 packs remain readable and produce a warning because they do not contain viewpoint or notation evidence. Do not create new v2 packs. Upgrade a diagram to v3 only after assigning source-grounded roles and revising its SVG to satisfy the real geometry contract.
+Legacy v2 packs remain readable and produce a warning because they do not contain viewpoint or notation evidence. Do not create new v2 packs. Upgrade a diagram to v3 only after assigning source-grounded roles and revising its SVG to satisfy the real geometry contract; use v4 for new work so pack identity and type-native treatment are also enforced.

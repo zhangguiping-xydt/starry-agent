@@ -1,5 +1,13 @@
 id: dark-architecture
-colors:
+visual_behavior:
+  mode: preset
+  preset_id: dark-architecture
+  description: High-contrast system-topology language for dense architecture and runtime boundaries.
+  shape_language: Geometric containers, explicit nested boundaries, and restrained luminous emphasis.
+  whitespace_rhythm: Compact topology core with wider perimeter rails for control and external links.
+  decoration: Limited glow-like emphasis on selected paths only; no dashboard chrome.
+  elevation: Layering comes from nested surfaces and stroke contrast, not drop shadows.
+palette:
   background: "#020617"
   surface: "#111827"
   primary: "#38bdf8"
@@ -22,8 +30,18 @@ geometry:
   cluster_padding: 28
   node_gap: 40
   rank_gap: 68
-  corner_radius: 8
+  corner_radius: 4
 connectors:
-  width: 1.6
+  width: 1.8
   arrow_size: 7
   routing: orthogonal
+stroke_language:
+  node_width: 1.4
+  boundary_width: 1.0
+  connector_width: 1.8
+  emphasis_width: 2.6
+  linecap: round
+  linejoin: round
+texture:
+  mode: none
+  description: Solid dark field; any glow must remain a bounded semantic emphasis, not a background effect.

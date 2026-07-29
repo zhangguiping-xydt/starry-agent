@@ -8,6 +8,7 @@ The output is a technical diagram. Read `../templates/notations/technical_notati
 
 - Improve layout, spacing, alignment, hierarchy, grouping, and whitespace.
 - Apply typography, strokes, fills, shadows, and subtle effects from `style_tokens`.
+- For contract v4, re-read `pack_identity` and `diagram_treatment` before each diagram. Apply the pack identity consistently while using the locked type's renderer family.
 - Normalize canvas size and viewBox while keeping all semantic labels visible.
 - Apply the exact role sizes from `style_tokens.typography`; put `data-text-role` on every visible text element.
 - Add stable semantic metadata required by the visual gate.
@@ -21,6 +22,7 @@ The output is a technical diagram. Read `../templates/notations/technical_notati
 - Shrinking one label, clipping text, or changing `delivery_target` to avoid a legibility failure.
 - Moving an activity outside its lane, a component outside its boundary, or a message outside its locked order.
 - Replacing a decision, datastore, state marker, boundary, lane, or lifeline with a generic card.
+- Sending architecture, flow, state, sequence, ER, deployment, or event diagrams through one generic `svg_node()` or card renderer.
 
 ## Enhancement levels
 
@@ -29,6 +31,8 @@ The output is a technical diagram. Read `../templates/notations/technical_notati
 - strong: create a polished SVG composition, still constrained by every lock item.
 
 Only use `style_tokens` for visual decisions.
+
+For contract v4, set `data-pack-identity`, `data-renderer-family`, and `data-composition-rhythm` on the SVG root. Use the exact permitted widths, caps, and joins from `pack_identity.stroke_language`. Shared helpers may apply tokens, measure text, or emit metadata; the type renderer owns shapes, containers, and connector grammar.
 
 ## Layout execution
 

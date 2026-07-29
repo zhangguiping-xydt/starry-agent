@@ -1,4 +1,4 @@
 interface:
   display_name: "Starry Diagram"
-  short_description: "技术图视角选型、标准符号契约、图包多样性与机器质量闭环"
-  default_prompt: "Use $starry-diagram to create a fact-grounded technical diagram pack with distinct viewpoints, executable notation contracts, delivery-size legibility, and machine-verified quality gates."
+  short_description: "技术图事实契约、自由视觉行为、类型专属渲染与机器质量闭环"
+  default_prompt: "Use $starry-diagram to create a fact-grounded technical diagram pack with custom visual behavior, type-native renderers, and machine-verified quality gates."

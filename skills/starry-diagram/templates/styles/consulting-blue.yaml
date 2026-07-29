@@ -1,5 +1,13 @@
 id: consulting-blue
-colors:
+visual_behavior:
+  mode: preset
+  preset_id: consulting-blue
+  description: Analytical technical-report language with strong alignment and restrained hierarchy.
+  shape_language: Mostly sharp containers, thin rules, explicit grouping, and minimal corner rounding.
+  whitespace_rhythm: Columnar spacing with generous separation between unrelated technical concerns.
+  decoration: Dividers and small evidence annotations only; avoid presentation-page furniture.
+  elevation: Flat hierarchy with contrast bands instead of shadows.
+palette:
   background: "#f4f8ff"
   surface: "#ffffff"
   primary: "#1d4ed8"
@@ -22,8 +30,18 @@ geometry:
   cluster_padding: 28
   node_gap: 40
   rank_gap: 68
-  corner_radius: 8
+  corner_radius: 2
 connectors:
-  width: 1.6
+  width: 1.5
   arrow_size: 7
   routing: orthogonal
+stroke_language:
+  node_width: 1.2
+  boundary_width: 1.0
+  connector_width: 1.5
+  emphasis_width: 2.2
+  linecap: square
+  linejoin: miter
+texture:
+  mode: none
+  description: Clean publication field without gradients, grain, or glow.

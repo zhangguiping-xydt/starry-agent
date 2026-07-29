@@ -1,4 +1,4 @@
-contract_version: 3
+contract_version: 4
 id: architecture-overview
 title: 架构总览
 type: architecture
@@ -7,8 +7,50 @@ reading_question: 用户请求经过哪些系统边界和核心组件？
 notation_profile: architecture-structure
 source_format: graphviz
 visual_style:
-  style_id: clean-technical
   enhancement_level: strong
+pack_identity:
+  id: clean-technical
+  visual_behavior:
+    mode: preset
+    preset_id: clean-technical
+    description: 精确、克制的工程图语言，以技术边界和拓扑为主，不使用幻灯片装饰。
+    shape_language: 低圆角、清晰边界、按技术符号区分节点，不将所有对象渲染为卡片。
+    whitespace_rhythm: 结构化留白，主路径紧凑，边界之间保留明确间隔。
+    decoration: 仅保留帮助技术阅读的标题、分组和强调，不使用无语义阴影或插画。
+    elevation: 扁平层级，通过描边粗细和明度区分层次。
+  palette:
+    background: "#f8fafc"
+    surface: "#ffffff"
+    primary: "#2563eb"
+    accent: "#14b8a6"
+    text: "#0f172a"
+    muted: "#64748b"
+    line: "#94a3b8"
+  typography:
+    font_family: "Source Han Sans CN, Noto Sans CJK SC, Microsoft YaHei, sans-serif"
+    diagram_title_size: 28
+    group_title_size: 18
+    node_title_size: 16
+    node_body_size: 14
+    edge_label_size: 14
+    annotation_size: 13
+    min_font_size: 12
+  stroke_language:
+    node_width: 1.4
+    boundary_width: 1.2
+    connector_width: 1.6
+    emphasis_width: 2.4
+    linecap: round
+    linejoin: round
+  texture:
+    mode: none
+    description: 纯色平面，不添加纸张、颗粒、网格或光晕纹理。
+diagram_treatment:
+  renderer_family: architecture
+  composition_rhythm: focal
+  emphasis: 核心组件、系统边界与主调用路径。
+  boundary_style: 使用明确的分层容器表达运行时边界。
+  connector_style: 使用正交依赖线，主路径优先，控制线走外轨。
 layout_plan:
   pattern: layered-system
   selection_reason: 源材料明确给出应用入口与编排服务的分层依赖，且不存在以消息时序为主的阅读任务。
@@ -94,3 +136,10 @@ style_tokens:
     width: 1.6
     arrow_size: 7
     routing: orthogonal
+  strokes:
+    node_width: 1.4
+    boundary_width: 1.2
+    connector_width: 1.6
+    emphasis_width: 2.4
+    linecap: round
+    linejoin: round

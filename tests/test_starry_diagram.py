@@ -20,7 +20,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from build_check_report import build_check_report  # noqa: E402
-from build_embed_blocks import build_embed_blocks  # noqa: E402
+from build_embed_blocks import analyze_pack_visual_identity, build_embed_blocks  # noqa: E402
 import font_resolution  # noqa: E402
 from font_resolution import parse_font_stack, validate_font_resolution  # noqa: E402
 from profiles import load_layouts, load_notations, load_profiles  # noqa: E402
@@ -33,6 +33,7 @@ from validate_diagram_manifest import validate_manifest, validate_manifest_file 
 from validate_preview_review import REQUIRED_CHECKS, validate_preview_review  # noqa: E402
 from validate_semantic_source import validate_semantic_source  # noqa: E402
 from validate_visual_svg import validate_visual_svg  # noqa: E402
+from visual_identity import validate_pack_identity  # noqa: E402
 from visual_legibility import _contrast_ratio  # noqa: E402
 
 
@@ -67,6 +68,67 @@ def _style_tokens() -> dict[str, object]:
         },
         "connectors": {"width": 1.6, "arrow_size": 7, "routing": "orthogonal"},
     }
+
+
+def _pack_identity(*, mode: str = "custom") -> dict[str, object]:
+    behavior: dict[str, object] = {
+        "mode": mode,
+        "description": "Precise industrial technical language without slide decoration.",
+        "shape_language": "Low-radius geometry with type-native technical symbols.",
+        "whitespace_rhythm": "Compact primary path with clear boundary gaps.",
+        "decoration": "Semantic annotations only.",
+        "elevation": "Flat hierarchy expressed through strokes and luminance.",
+    }
+    if mode == "preset":
+        behavior["preset_id"] = "clean-technical"
+    tokens = _style_tokens()
+    strokes = {
+        "node_width": 1.4,
+        "boundary_width": 1.2,
+        "connector_width": 1.6,
+        "emphasis_width": 2.4,
+        "linecap": "round",
+        "linejoin": "round",
+    }
+    return {
+        "id": "precise-industrial",
+        "visual_behavior": behavior,
+        "palette": tokens["colors"],
+        "typography": tokens["typography"],
+        "stroke_language": strokes,
+        "texture": {
+            "mode": "none",
+            "description": "Solid field without grain, grid, glow, or paper texture.",
+        },
+    }
+
+
+def _v4_architecture_lock() -> dict[str, object]:
+    lock = _architecture_lock()
+    lock.update(
+        {
+            "contract_version": 4,
+            "viewpoint_family": "structure",
+            "reading_question": "Which components and boundaries handle the request?",
+            "notation_profile": "architecture-structure",
+            "pack_identity": _pack_identity(),
+            "diagram_treatment": {
+                "renderer_family": "architecture",
+                "composition_rhythm": "focal",
+                "emphasis": "Runtime boundary and primary call path.",
+                "boundary_style": "Explicit containment boundary.",
+                "connector_style": "Orthogonal dependency line.",
+            },
+        }
+    )
+    lock["visual_style"] = {"enhancement_level": "strong"}
+    lock["nodes"][0]["notation_role"] = "external-system"
+    lock["nodes"][1]["notation_role"] = "service"
+    lock["groups"][0]["notation_role"] = "boundary"
+    lock["style_tokens"]["strokes"] = dict(
+        lock["pack_identity"]["stroke_language"]
+    )
+    return lock
 
 
 def _layout_plan(
@@ -382,10 +444,50 @@ def test_reference_typography_meets_reference_delivery_target() -> None:
 def test_style_text_tokens_meet_default_contrast() -> None:
     for style_path in (SKILL_DIR / "templates" / "styles").glob("*.yaml"):
         style = yaml.safe_load(style_path.read_text(encoding="utf-8"))
-        colors = style["colors"]
+        colors = style["palette"]
         assert _contrast_ratio(colors["text"], colors["background"]) >= 4.5
         assert _contrast_ratio(colors["muted"], colors["background"]) >= 4.5
         assert _contrast_ratio(colors["muted"], colors["surface"]) >= 4.5
+
+
+def test_style_presets_define_behavior_independently_from_palette() -> None:
+    behaviors = set()
+    radii = set()
+    for style_path in (SKILL_DIR / "templates" / "styles").glob("*.yaml"):
+        style = yaml.safe_load(style_path.read_text(encoding="utf-8"))
+        behavior = style["visual_behavior"]
+        assert behavior["mode"] == "preset"
+        assert behavior["preset_id"] == style["id"]
+        for field in (
+            "description",
+            "shape_language",
+            "whitespace_rhythm",
+            "decoration",
+            "elevation",
+        ):
+            assert behavior[field]
+        assert style["stroke_language"]["connector_width"] == style["connectors"]["width"]
+        behaviors.add(behavior["shape_language"])
+        radii.add(style["geometry"]["corner_radius"])
+        identity = {
+            "id": style["id"],
+            "visual_behavior": behavior,
+            "palette": style["palette"],
+            "typography": style["typography"],
+            "stroke_language": style["stroke_language"],
+            "texture": style["texture"],
+        }
+        tokens = {
+            "colors": style["palette"],
+            "typography": style["typography"],
+            "geometry": style["geometry"],
+            "connectors": style["connectors"],
+            "strokes": style["stroke_language"],
+        }
+        _, errors, _ = validate_pack_identity(identity, style_tokens=tokens)
+        assert errors == []
+    assert len(behaviors) > 1
+    assert len(radii) > 1
 
 
 def test_lock_rejects_enhancement_below_type_minimum() -> None:
@@ -558,6 +660,33 @@ def test_v3_lock_enforces_notation_roles_and_layout_signature() -> None:
     report = validate_lock(lock)
     assert report["status"] == "failed"
     assert any("must define notation_role" in error for error in report["errors"])
+
+
+def test_v4_lock_accepts_custom_behavior_without_fixed_style_id() -> None:
+    lock = _v4_architecture_lock()
+    report = validate_lock(lock)
+    assert report["status"] == "passed"
+    assert report["pack_identity"]["behavior_mode"] == "custom"
+    assert report["diagram_treatment"]["renderer_family"] == "architecture"
+
+
+def test_v4_lock_rejects_identity_token_drift() -> None:
+    lock = _v4_architecture_lock()
+    lock["style_tokens"]["colors"]["primary"] = "#dc2626"
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any(
+        "style_tokens.colors must exactly match pack_identity.palette" in error
+        for error in report["errors"]
+    )
+
+
+def test_v4_lock_rejects_generic_renderer_family() -> None:
+    lock = _v4_architecture_lock()
+    lock["diagram_treatment"]["renderer_family"] = "generic-card"
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("must equal the locked diagram type" in error for error in report["errors"])
 
 
 def test_v3_branching_flow_requires_decision_role() -> None:
@@ -884,6 +1013,49 @@ def test_v3_visual_rejects_decision_rendered_as_process_box(tmp_path: Path) -> N
     ]
 
 
+def test_v4_visual_binds_identity_to_actual_svg_geometry(tmp_path: Path) -> None:
+    lock = _v4_architecture_lock()
+    lock_path = tmp_path / "diagram_lock.yaml"
+    svg_path = tmp_path / "visual.svg"
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120" data-pack-identity="precise-industrial" data-renderer-family="architecture" data-composition-rhythm="focal">
+  <rect width="260" height="120" fill="#f8fafc"/>
+  <g data-diagram-id="runtime" data-diagram-kind="group" data-members="node-a,node-b" data-notation-role="boundary">
+    <rect x="4" y="4" width="252" height="112" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+    <text x="10" y="28" font-family="Noto Sans CJK SC" font-size="18" data-text-role="group-title" fill="#0f172a">Runtime</text>
+  </g>
+  <g data-diagram-id="node-a" data-diagram-kind="node" data-notation-role="external-system">
+    <rect x="20" y="45" width="70" height="40" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/>
+    <text x="30" y="70" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Node A</text>
+  </g>
+  <g data-diagram-id="node-b" data-diagram-kind="node" data-notation-role="service">
+    <rect x="170" y="45" width="70" height="40" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/>
+    <text x="180" y="70" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Node B</text>
+  </g>
+  <g data-diagram-id="a-to-b" data-diagram-kind="edge" data-from="node-a" data-to="node-b">
+    <path d="M90 65 H170" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="117" y="58" font-family="Noto Sans CJK SC" font-size="14" data-text-role="edge-label" fill="#64748b">Calls</text>
+  </g>
+</svg>'''
+    svg_path.write_text(svg, encoding="utf-8")
+    report = validate_visual_svg(lock_path, svg_path)
+    assert report["status"] == "passed"
+    identity = report["visual"]["visual_identity"]
+    assert identity["pack_identity"] == "precise-industrial"
+    assert identity["renderer_family"] == "architecture"
+    assert identity["stroke_language"]["seen_widths"] == [1.2, 1.4, 1.6]
+
+    svg_path.write_text(
+        svg.replace('data-renderer-family="architecture"', 'data-renderer-family="generic-card"')
+        .replace('stroke-width="1.6"', 'stroke-width="3.7"'),
+        encoding="utf-8",
+    )
+    report = validate_visual_svg(lock_path, svg_path)
+    assert report["status"] == "failed"
+    assert any("data-renderer-family" in error for error in report["visual"]["errors"])
+    assert any("stroke-width 3.7" in error for error in report["visual"]["errors"])
+
+
 def test_visual_enforces_edge_label_role_size(tmp_path: Path) -> None:
     diagram_dir = _write_diagram(tmp_path)
     lock_path = diagram_dir / "diagram_lock.yaml"
@@ -1205,6 +1377,32 @@ def test_stamp_visual_metadata_adds_locked_notation_roles(tmp_path: Path) -> Non
     assert 'data-notation-role="service"' in stamped
 
 
+def test_stamp_visual_metadata_adds_v4_root_identity(tmp_path: Path) -> None:
+    lock = _v4_architecture_lock()
+    lock_path = tmp_path / "diagram_lock.yaml"
+    svg_path = tmp_path / "visual.svg"
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    svg_path.write_text(
+        '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120">
+  <g id="runtime"><rect x="5" y="5" width="250" height="110"/></g>
+  <g id="node-a"><rect x="20" y="45" width="70" height="40"/></g>
+  <g id="node-b"><rect x="170" y="45" width="70" height="40"/></g>
+  <g id="a-to-b"><path d="M90 65 H170"/></g>
+</svg>''',
+        encoding="utf-8",
+    )
+    result = stamp_visual_metadata(lock_path, svg_path, svg_path)
+    assert result["status"] == "passed"
+    assert result["root_metadata"] == {
+        "data-pack-identity": "precise-industrial",
+        "data-renderer-family": "architecture",
+        "data-composition-rhythm": "focal",
+    }
+    stamped = svg_path.read_text(encoding="utf-8")
+    assert 'data-pack-identity="precise-industrial"' in stamped
+    assert 'data-renderer-family="architecture"' in stamped
+
+
 def test_metadata_reserialization_does_not_bypass_noop_gate(tmp_path: Path) -> None:
     diagram_dir = _write_diagram(tmp_path, visual_shifted=False)
     result = stamp_visual_metadata(
@@ -1352,6 +1550,77 @@ def test_v3_manifest_enforces_distinct_questions_and_pack_diversity() -> None:
     duplicate = validate_manifest(manifest)
     assert duplicate["status"] == "failed"
     assert any("distinct reading questions" in error for error in duplicate["errors"])
+
+
+def test_v4_manifest_carries_custom_pack_identity_and_type_treatment() -> None:
+    manifest = {
+        "contract_version": 4,
+        "project": "Identity example",
+        "mode": "diagram-pack",
+        "source_summary": "One source-grounded architecture view.",
+        "pack_identity": _pack_identity(),
+        "diagrams": [
+            {
+                "id": "architecture-overview",
+                "title": "Architecture Overview",
+                "type": "architecture",
+                "viewpoint_family": "structure",
+                "reading_question": "Which components handle the request?",
+                "notation_profile": "architecture-structure",
+                "status": "generated",
+                "reason": "The source defines components and runtime boundaries.",
+                "source_refs": ["architecture.md#overview"],
+                "source_format": "graphviz",
+                "enhancement_level": "strong",
+                "layout_pattern": "layered-system",
+                "directory": "architecture-overview",
+                "diagram_treatment": {
+                    "renderer_family": "architecture",
+                    "composition_rhythm": "focal",
+                    "emphasis": "Runtime boundary and primary path.",
+                    "boundary_style": "Explicit containment boundary.",
+                    "connector_style": "Orthogonal dependency line.",
+                },
+            }
+        ],
+    }
+    report = validate_manifest(manifest)
+    assert report["status"] == "passed"
+    assert report["pack_identity"]["behavior_mode"] == "custom"
+    assert report["diversity"]["treatment_counts"]
+
+    manifest["diagrams"][0]["diagram_treatment"]["renderer_family"] = "generic-card"
+    report = validate_manifest(manifest)
+    assert report["status"] == "failed"
+    assert any("must equal the locked diagram type" in error for error in report["errors"])
+
+
+def test_v4_pack_gate_rejects_cross_type_rounded_card_collapse() -> None:
+    signature = "rounded-rect|rounded-rect|orthogonal|dense"
+    diagrams = [
+        {
+            "id": f"diagram-{index}",
+            "type": diagram_type,
+            "visual_identity": {
+                "checked": True,
+                "pack_identity": "precise-industrial",
+                "signature": signature,
+                "card_like": True,
+            },
+        }
+        for index, diagram_type in enumerate(
+            ("architecture", "flow", "state", "sequence")
+        )
+    ]
+    manifest = {"contract_version": 4}
+    report = analyze_pack_visual_identity(diagrams, manifest)
+    assert report["errors"]
+    assert report["suspicious_card_signatures"][signature]["count"] == 4
+
+    manifest["visual_diversity_reason"] = (
+        "The source contains only equivalent rectangular boundary facts across these views."
+    )
+    assert analyze_pack_visual_identity(diagrams, manifest)["errors"] == []
 
 
 def test_render_svg_copies_valid_source_and_rejects_invalid_xml(tmp_path: Path) -> None:

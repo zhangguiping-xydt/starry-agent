@@ -10,11 +10,13 @@ from pathlib import Path
 
 try:
     from common import parse_svg, read_yaml, semantic_items, svg_semantic_elements, write_json
+    from notation import contract_version
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import parse_svg, read_yaml, semantic_items, svg_semantic_elements, write_json
+    from notation import contract_version
 
 
 def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) -> dict[str, object]:
@@ -23,6 +25,24 @@ def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) ->
     elements = svg_semantic_elements(root)
     missing: list[str] = []
     stamped: list[str] = []
+    root_metadata: dict[str, str] = {}
+
+    if contract_version(lock) >= 4:
+        identity = lock.get("pack_identity", {})
+        treatment = lock.get("diagram_treatment", {})
+        values = {
+            "data-pack-identity": identity.get("id") if isinstance(identity, Mapping) else None,
+            "data-renderer-family": (
+                treatment.get("renderer_family") if isinstance(treatment, Mapping) else None
+            ),
+            "data-composition-rhythm": (
+                treatment.get("composition_rhythm") if isinstance(treatment, Mapping) else None
+            ),
+        }
+        for attribute, value in values.items():
+            if isinstance(value, str) and value:
+                root.set(attribute, value)
+                root_metadata[attribute] = value
 
     for item in semantic_items(lock):
         item_id = item["id"]
@@ -59,6 +79,7 @@ def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) ->
         "source": str(svg_path),
         "output": str(output_path),
         "stamped": sorted(stamped),
+        "root_metadata": root_metadata,
         "missing": sorted(missing),
     }
     if missing:

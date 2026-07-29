@@ -9,6 +9,7 @@ from typing import Any
 
 try:
     from common import read_yaml, write_json
+    from font_resolution import validate_font_resolution
     from render_preview import (
         _render_with_chrome,
         _render_with_imagemagick,
@@ -22,6 +23,7 @@ except ModuleNotFoundError:
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import read_yaml, write_json
+    from font_resolution import validate_font_resolution
     from render_preview import (
         _render_with_chrome,
         _render_with_imagemagick,
@@ -101,6 +103,9 @@ def validate_delivery_raster(
                 errors.append("raster render report visual hash does not match visual.svg")
             if render_report.get("delivery_png_sha256") != delivery_sha256:
                 errors.append("raster render report delivery hash does not match delivery.png")
+            font_resolution = render_report.get("font_resolution")
+            if not isinstance(font_resolution, dict) or font_resolution.get("status") != "passed":
+                errors.append("raster render report font resolution is missing or failed")
     return {
         "status": "failed" if errors else "passed",
         "errors": errors,
@@ -122,6 +127,17 @@ def render_delivery_raster(
     backend: str = "auto",
 ) -> dict[str, Any]:
     lock = read_yaml(lock_path)
+    font_resolution = validate_font_resolution(lock)
+    if font_resolution["status"] != "passed":
+        report = {
+            "status": "failed",
+            "backend": None,
+            "font_resolution": font_resolution,
+            "errors": font_resolution["errors"],
+        }
+        if report_path is not None:
+            write_json(report_path, report)
+        return report
     try:
         width, height, _ = raster_dimensions(lock, svg_path)
     except (OSError, ValueError) as exc:
@@ -158,6 +174,7 @@ def render_delivery_raster(
     else:
         report = validate_delivery_raster(lock, svg_path, output_path)
         report["backend"] = used_backend
+        report["font_resolution"] = font_resolution
         if failures:
             report["warnings"] = failures
     if report_path is not None:

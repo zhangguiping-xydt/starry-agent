@@ -280,6 +280,15 @@ def _validate_style_tokens(style_tokens: Any, errors: list[str]) -> None:
     else:
         if not isinstance(typography.get("font_family"), str) or not typography["font_family"]:
             errors.append("style_tokens.typography.font_family must be defined")
+        elif not any(
+            family.strip().strip("\"'").casefold()
+            not in {"serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"}
+            for family in typography["font_family"].split(",")
+            if family.strip().strip("\"'")
+        ):
+            errors.append(
+                "style_tokens.typography.font_family must include a non-generic family"
+            )
         sizes: dict[str, float] = {}
         for role in _TYPOGRAPHY_ROLES:
             value = typography.get(role)

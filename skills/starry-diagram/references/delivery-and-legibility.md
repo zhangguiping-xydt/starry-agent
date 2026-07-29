@@ -36,13 +36,15 @@ raster_delivery:
 
 High-density raster delivery fixes edge and glyph sharpness on high-DPI screens. It does not fix undersized typography. If the 1× target-size preview is hard to read, reflow, enlarge typography, or split the diagram before rendering the publication bitmap.
 
+The font stack must name at least one real, non-generic family before the generic fallback. Raster rendering resolves the stack with Fontconfig and records the selected family in `delivery_render_report.json`. If the stack resolves outside its declared non-generic families, rendering fails instead of silently substituting an unrelated font. Install Fontconfig and at least one declared family on the render host.
+
 ## Typography roles
 
 Use the complete scale from the selected style:
 
 ```yaml
 typography:
-  font_family: "Noto Sans CJK SC"
+  font_family: "Source Han Sans CN, Noto Sans CJK SC, Microsoft YaHei, sans-serif"
   diagram_title_size: 28
   group_title_size: 18
   node_title_size: 16
@@ -107,4 +109,4 @@ python scripts/render_delivery_raster.py diagram_lock.yaml visual.svg delivery.p
   --report delivery_render_report.json
 ```
 
-`build_check_report.py` fails if the declared `delivery.png` is missing, its dimensions do not equal the logical delivery target multiplied by `pixel_ratio`, or its render-report hashes do not match the current `visual.svg` and `delivery.png`.
+`build_check_report.py` fails if the declared `delivery.png` is missing, its dimensions do not equal the logical delivery target multiplied by `pixel_ratio`, its resolved font is not one of the declared non-generic families, or its render-report hashes do not match the current `visual.svg` and `delivery.png`.

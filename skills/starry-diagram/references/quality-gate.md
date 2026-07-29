@@ -73,7 +73,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - PNG dimensions exactly match `delivery_target`; derive height from viewBox when omitted.
 - `build_check_report.py` validates the PNG independently of the renderer report.
 - `preview_review.yaml` matches the current PNG and visual SVG hashes and every technical visual review check passes.
-- When `raster_delivery` is declared, `delivery.png` dimensions equal the logical target dimensions multiplied by `pixel_ratio`, and `delivery_render_report.json` binds it to the current `visual.svg`; it is not used as the target-size review artifact.
+- When `raster_delivery` is declared, the font stack resolves to a declared non-generic family, `delivery.png` dimensions equal the logical target dimensions multiplied by `pixel_ratio`, and `delivery_render_report.json` binds it to the current `visual.svg`; it is not used as the target-size review artifact.
 
 ## Failure handling
 
@@ -88,5 +88,6 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 | Text overflow or undersized delivery text | Expand/reflow geometry, reroute downstream edges, or split the diagram |
 | Missing or wrong-size preview | Render `preview.png` at the locked delivery target and rebuild reports |
 | Missing or wrong-size raster delivery | Render `delivery.png` from `visual.svg` at the declared `pixel_ratio`; keep `preview.png` unchanged |
+| Raster font resolves to an undeclared fallback | Install a declared family or update the style font stack, then rerender; do not sharpen the bitmap |
 | Stale or failed technical review | Inspect the current preview, revise the SVG, rerender, and rebind the review hash |
 | Pack contains a failed diagram | Fail diagram_pack_report; do not present the pack as passed |

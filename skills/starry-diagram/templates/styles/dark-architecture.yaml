@@ -8,7 +8,7 @@ colors:
   muted: "#94a3b8"
   line: "#334155"
 typography:
-  font_family: "Noto Sans CJK SC"
+  font_family: "Source Han Sans CN, Noto Sans CJK SC, Microsoft YaHei, sans-serif"
   diagram_title_size: 28
   group_title_size: 18
   node_title_size: 16

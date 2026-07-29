@@ -4,6 +4,7 @@ import json
 import hashlib
 import shutil
 import struct
+import subprocess
 import sys
 import zlib
 from pathlib import Path
@@ -20,6 +21,8 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from build_check_report import build_check_report  # noqa: E402
 from build_embed_blocks import build_embed_blocks  # noqa: E402
+import font_resolution  # noqa: E402
+from font_resolution import parse_font_stack, validate_font_resolution  # noqa: E402
 from profiles import load_layouts, load_profiles  # noqa: E402
 from render_delivery_raster import raster_dimensions, validate_delivery_raster  # noqa: E402
 from render_preview import png_dimensions, render_preview, target_dimensions  # noqa: E402
@@ -245,6 +248,14 @@ def _write_delivery_render_report(diagram_dir: Path) -> None:
         "actual_dimensions": [520, 240],
         "visual_svg_sha256": hashlib.sha256(visual.read_bytes()).hexdigest(),
         "delivery_png_sha256": hashlib.sha256(delivery.read_bytes()).hexdigest(),
+        "font_resolution": {
+            "status": "passed",
+            "resolver": "test",
+            "declared_families": ["Noto Sans CJK SC"],
+            "resolved_families": ["Noto Sans CJK SC"],
+            "matched_family": "Noto Sans CJK SC",
+            "errors": [],
+        },
         "errors": [],
     }
     (diagram_dir / "delivery_render_report.json").write_text(
@@ -508,6 +519,41 @@ def test_lock_validates_high_density_raster_contract() -> None:
 
     lock["raster_delivery"]["pixel_ratio"] = 2
     assert validate_lock(lock)["status"] == "passed"
+
+
+def test_font_stack_parser_and_resolution_reject_silent_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert parse_font_stack(
+        '"Source Han Sans CN", Noto Sans CJK SC, sans-serif'
+    ) == ["Source Han Sans CN", "Noto Sans CJK SC", "sans-serif"]
+
+    lock = _architecture_lock()
+    lock["style_tokens"]["typography"]["font_family"] = (
+        "Source Han Sans CN, Noto Sans CJK SC, Microsoft YaHei, sans-serif"
+    )
+    monkeypatch.setattr(
+        font_resolution.shutil, "which", lambda _: "/usr/bin/fc-match"
+    )
+    monkeypatch.setattr(
+        font_resolution,
+        "run_command",
+        lambda _: subprocess.CompletedProcess(
+            [], 0, "Source Han Sans CN,思源黑体 CN\n", ""
+        ),
+    )
+    report = validate_font_resolution(lock)
+    assert report["status"] == "passed"
+    assert report["matched_family"] == "Source Han Sans CN"
+
+    monkeypatch.setattr(
+        font_resolution,
+        "run_command",
+        lambda _: subprocess.CompletedProcess([], 0, "DejaVu Sans\n", ""),
+    )
+    report = validate_font_resolution(lock)
+    assert report["status"] == "failed"
+    assert report["matched_family"] is None
 
 
 def test_lock_rejects_dense_overview_layout() -> None:

@@ -75,6 +75,8 @@ python scripts/build_check_report.py <diagram-directory>
 
 If the destination rasterizes images or does not reliably embed SVG, declare `raster_delivery` in the lock and render `delivery.png` after the preview review. `preview.png` remains the 1× consumer-size review artifact; `delivery.png` is a higher-pixel-density publication artifact and must never replace the target-size review.
 
+Raster rendering must resolve `style_tokens.typography.font_family` to one of the explicitly declared non-generic families. A silent fallback to an unrelated system font is a failed delivery stage.
+
 ```bash
 python scripts/render_delivery_raster.py diagram_lock.yaml visual.svg delivery.png --report delivery_render_report.json
 ```
@@ -109,6 +111,7 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Treating `preview.png` as optional or hand-authoring a preview pass report.
 - Reviewing a zoomed SVG instead of the target-size PNG or leaving a stale preview-review hash.
 - Uploading the 1× `preview.png` as the final image on a high-DPI raster-only destination instead of declaring and rendering `raster_delivery`.
+- Trusting the SVG font-family string without verifying which installed font the rasterizer actually resolved.
 - Leaving semantic items out of `primary_items`/regions or edges out of `edge_roles`.
 - Routing control links repeatedly across the primary flow instead of using a side rail or companion view.
 - Using a renderer or enhancement level that violates the selected type profile.

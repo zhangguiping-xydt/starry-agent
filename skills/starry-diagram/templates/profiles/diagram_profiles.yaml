@@ -1,4 +1,4 @@
-version: 2
+version: 3
 enhancement_levels:
   light: 1
   medium: 2
@@ -22,6 +22,10 @@ profiles:
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
     visual_identity: strict
+    preferred_viewpoint_family: structure
+    allowed_viewpoint_families: [structure]
+    preferred_notation_profiles: [architecture-structure]
+    allowed_notation_profiles: [architecture-structure]
   business-architecture:
     pick_when:
       - Business domains, capabilities, ownership, or value stages are explicitly named.
@@ -39,6 +43,10 @@ profiles:
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
     visual_identity: strict
+    preferred_viewpoint_family: structure
+    allowed_viewpoint_families: [structure]
+    preferred_notation_profiles: [business-capability]
+    allowed_notation_profiles: [business-capability]
   component:
     pick_when:
       - Modules, packages, libraries, or deployable components and their dependencies are explicit.
@@ -56,6 +64,10 @@ profiles:
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
     visual_identity: strict
+    preferred_viewpoint_family: structure
+    allowed_viewpoint_families: [structure]
+    preferred_notation_profiles: [architecture-structure]
+    allowed_notation_profiles: [architecture-structure]
   concept:
     pick_when:
       - The source explicitly defines a mechanism, feedback loop, flywheel, or abstract relationship.
@@ -73,6 +85,10 @@ profiles:
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
     visual_identity: strict
+    preferred_viewpoint_family: concept
+    allowed_viewpoint_families: [concept]
+    preferred_notation_profiles: [loop-mechanism]
+    allowed_notation_profiles: [loop-mechanism]
   data-flow:
     pick_when:
       - Collection, transformation, persistence, synchronization, or consumption of data is primary.
@@ -90,6 +106,10 @@ profiles:
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
     visual_identity: strict
+    preferred_viewpoint_family: data
+    allowed_viewpoint_families: [data]
+    preferred_notation_profiles: [data-movement]
+    allowed_notation_profiles: [data-movement]
   deployment:
     pick_when:
       - Environments, zones, hosts, containers, networks, or trust boundaries are explicit.
@@ -107,6 +127,10 @@ profiles:
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes]
     visual_identity: strict
+    preferred_viewpoint_family: structure
+    allowed_viewpoint_families: [structure]
+    preferred_notation_profiles: [deployment-topology]
+    allowed_notation_profiles: [deployment-topology]
   er:
     pick_when:
       - Entities, fields, keys, and relationship cardinalities are explicit.
@@ -124,6 +148,10 @@ profiles:
     required_sections: [entities, relationships]
     non_empty_sections: [entities, relationships]
     visual_identity: strict
+    preferred_viewpoint_family: data
+    allowed_viewpoint_families: [data]
+    preferred_notation_profiles: [er-schema]
+    allowed_notation_profiles: [er-schema]
   event-flow:
     pick_when:
       - Producers, named events, topics, subscribers, or projections are explicit.
@@ -141,6 +169,10 @@ profiles:
     required_sections: [nodes, edges, groups]
     non_empty_sections: [nodes, edges]
     visual_identity: strict
+    preferred_viewpoint_family: interaction
+    allowed_viewpoint_families: [interaction, data]
+    preferred_notation_profiles: [event-stream]
+    allowed_notation_profiles: [event-stream]
   flow:
     pick_when:
       - Ordered steps, decisions, approvals, retries, or exception paths are explicit.
@@ -158,6 +190,10 @@ profiles:
     required_sections: [nodes, edges]
     non_empty_sections: [nodes, edges]
     visual_identity: strict
+    preferred_viewpoint_family: behavior
+    allowed_viewpoint_families: [behavior, decision]
+    preferred_notation_profiles: [activity-flow]
+    allowed_notation_profiles: [activity-flow]
   sequence:
     pick_when:
       - Stable participants exchange explicitly ordered calls, messages, events, or responses.
@@ -175,6 +211,10 @@ profiles:
     required_sections: [participants, messages]
     non_empty_sections: [participants, messages]
     visual_identity: strict
+    preferred_viewpoint_family: interaction
+    allowed_viewpoint_families: [interaction]
+    preferred_notation_profiles: [sequence-interaction]
+    allowed_notation_profiles: [sequence-interaction]
   state:
     pick_when:
       - Named lifecycle states and permitted transitions are explicit.
@@ -192,6 +232,10 @@ profiles:
     required_sections: [states, transitions]
     non_empty_sections: [states, transitions]
     visual_identity: strict
+    preferred_viewpoint_family: state
+    allowed_viewpoint_families: [state]
+    preferred_notation_profiles: [state-machine]
+    allowed_notation_profiles: [state-machine]
   swimlane:
     pick_when:
       - Activities have explicit owners and cross-role or cross-system handoffs matter.
@@ -209,3 +253,7 @@ profiles:
     required_sections: [lanes, nodes, edges]
     non_empty_sections: [lanes, nodes, edges]
     visual_identity: strict
+    preferred_viewpoint_family: ownership
+    allowed_viewpoint_families: [ownership]
+    preferred_notation_profiles: [swimlane-activity]
+    allowed_notation_profiles: [swimlane-activity]

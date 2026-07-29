@@ -36,6 +36,8 @@ def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) ->
             element.set("data-from", item["from"])
         if item.get("to"):
             element.set("data-to", item["to"])
+        if item.get("notation_role"):
+            element.set("data-notation-role", item["notation_role"])
         if item["kind"] in {"group", "lane"}:
             record = next(
                 (

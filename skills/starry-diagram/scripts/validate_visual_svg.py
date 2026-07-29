@@ -22,7 +22,15 @@ try:
         svg_text_content,
         write_json,
     )
-    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
+    from notation import validate_visual_notation
+    from profiles import (
+        enhancement_rank,
+        layout_for,
+        load_layouts,
+        load_notations,
+        load_profiles,
+        profile_for,
+    )
     from visual_geometry import analyze_visual_geometry
     from visual_legibility import analyze_visual_legibility
 except ModuleNotFoundError:
@@ -42,7 +50,15 @@ except ModuleNotFoundError:
         svg_text_content,
         write_json,
     )
-    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
+    from notation import validate_visual_notation
+    from profiles import (
+        enhancement_rank,
+        layout_for,
+        load_layouts,
+        load_notations,
+        load_profiles,
+        profile_for,
+    )
     from visual_geometry import analyze_visual_geometry
     from visual_legibility import analyze_visual_legibility
 
@@ -319,11 +335,13 @@ def validate_visual(
     semantic_path: Path | None = None,
     profiles_data: dict[str, Any] | None = None,
     layouts_data: dict[str, Any] | None = None,
+    notations_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
     profiles_data = profiles_data or load_profiles()
     layouts_data = layouts_data or load_layouts()
+    notations_data = notations_data or load_notations()
 
     try:
         root = parse_svg(svg_path)
@@ -351,6 +369,13 @@ def validate_visual(
     canvas_report = _validate_canvas(lock, root, errors)
     typography_report = _validate_typography(lock, root, errors)
     identity_report = _validate_semantic_identity(lock, root, errors, warnings)
+    notation_report, notation_errors, notation_warnings = validate_visual_notation(
+        lock,
+        root,
+        notations_data,
+    )
+    errors.extend(notation_errors)
+    warnings.extend(notation_warnings)
     change_report = _validate_visual_change(
         lock,
         svg_path,
@@ -411,6 +436,7 @@ def validate_visual(
             "canvas": canvas_report,
             "typography": typography_report,
             "semantic_identity": identity_report,
+            "notation": notation_report,
             "visual_change": change_report,
             "geometry": geometry_report,
             "legibility": legibility_report,
@@ -425,6 +451,7 @@ def validate_visual_svg(
     semantic_path: Path | None = None,
     profiles_path: Path | None = None,
     layouts_path: Path | None = None,
+    notations_path: Path | None = None,
 ) -> dict[str, Any]:
     lock = read_yaml(lock_path)
     svg_text = svg_path.read_text(encoding="utf-8")
@@ -435,6 +462,7 @@ def validate_visual_svg(
         semantic_path=semantic_path,
         profiles_data=load_profiles(profiles_path),
         layouts_data=load_layouts(layouts_path),
+        notations_data=load_notations(notations_path),
     )
 
 
@@ -445,6 +473,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--semantic-svg", type=Path)
     parser.add_argument("--profiles", type=Path)
     parser.add_argument("--layouts", type=Path)
+    parser.add_argument("--notations", type=Path)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args(argv)
 
@@ -454,6 +483,7 @@ def main(argv: list[str] | None = None) -> int:
         semantic_path=args.semantic_svg,
         profiles_path=args.profiles,
         layouts_path=args.layouts,
+        notations_path=args.notations,
     )
     if args.report is not None:
         write_json(args.report, report)

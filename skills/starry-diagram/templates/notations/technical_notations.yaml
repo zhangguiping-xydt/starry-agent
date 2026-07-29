@@ -1,0 +1,156 @@
+version: 1
+viewpoint_families:
+  structure: Components, boundaries, dependencies, and placement.
+  behavior: Ordered work and operational progression.
+  decision: Conditions, alternatives, convergence, and rejection paths.
+  state: Lifecycle states, guards, and terminal behavior.
+  interaction: Ordered calls or messages across stable participants.
+  ownership: Activities and handoffs across explicit owners or lanes.
+  data: Data collection, transformation, storage, and consumption.
+  concept: Named mechanisms, feedback loops, and control principles.
+notation_profiles:
+  architecture-structure:
+    supports: [architecture, component]
+    viewpoint_families: [structure]
+    section_roles:
+      nodes: [component, service, interface, external-system, datastore]
+      groups: [boundary, layer, domain]
+    visual_shapes:
+      component: [rect]
+      service: [rect]
+      interface: [rect]
+      external-system: [rect]
+      datastore: [datastore]
+      boundary: [container]
+      layer: [container]
+      domain: [container]
+    layout_requirements:
+      layered-system:
+        any_roles: [layer, boundary]
+      bounded-context-map:
+        any_roles: [boundary, domain]
+  business-capability:
+    supports: [business-architecture]
+    viewpoint_families: [structure]
+    section_roles:
+      nodes: [capability, value-stage]
+      groups: [domain, owner-boundary]
+    visual_shapes:
+      capability: [rect]
+      value-stage: [rect]
+      domain: [container]
+      owner-boundary: [container]
+  activity-flow:
+    supports: [flow]
+    viewpoint_families: [behavior, decision]
+    section_roles:
+      nodes: [start, process, decision, merge, end, control]
+      groups: [phase, control-plane]
+    visual_shapes:
+      start: [terminal]
+      process: [rect]
+      decision: [diamond]
+      merge: [diamond, circle]
+      end: [terminal]
+      control: [rect]
+      phase: [container]
+      control-plane: [container]
+    layout_requirements:
+      branching-flow:
+        any_roles: [decision]
+      control-sidecar-flow:
+        any_roles: [control]
+  swimlane-activity:
+    supports: [swimlane]
+    viewpoint_families: [ownership]
+    section_roles:
+      nodes: [start, process, decision, merge, end]
+      lanes: [lane]
+    visual_shapes:
+      start: [terminal]
+      process: [rect]
+      decision: [diamond]
+      merge: [diamond, circle]
+      end: [terminal]
+      lane: [container]
+  sequence-interaction:
+    supports: [sequence]
+    viewpoint_families: [interaction]
+    section_roles:
+      participants: [participant]
+    visual_shapes:
+      participant: [lifeline]
+  state-machine:
+    supports: [state]
+    viewpoint_families: [state]
+    section_roles:
+      states: [initial, state, final]
+    visual_shapes:
+      initial: [circle]
+      state: [rect, circle]
+      final: [circle]
+    required_roles: [initial]
+  er-schema:
+    supports: [er]
+    viewpoint_families: [data]
+    section_roles:
+      entities: [entity]
+    visual_shapes:
+      entity: [entity]
+  data-movement:
+    supports: [data-flow]
+    viewpoint_families: [data]
+    section_roles:
+      nodes: [external-entity, process, datastore, consumer]
+      groups: [pipeline, data-domain]
+    visual_shapes:
+      external-entity: [rect]
+      process: [rect]
+      datastore: [datastore]
+      consumer: [rect]
+      pipeline: [container]
+      data-domain: [container]
+  deployment-topology:
+    supports: [deployment]
+    viewpoint_families: [structure]
+    section_roles:
+      nodes: [runtime, container, artifact, service]
+      groups: [environment, zone, host]
+    visual_shapes:
+      runtime: [rect]
+      container: [rect]
+      artifact: [rect]
+      service: [rect]
+      environment: [container]
+      zone: [container]
+      host: [container]
+    required_roles: [environment]
+  event-stream:
+    supports: [event-flow]
+    viewpoint_families: [interaction, data]
+    section_roles:
+      nodes: [producer, topic, subscriber, projection]
+      groups: [event-domain]
+    visual_shapes:
+      producer: [rect]
+      topic: [event-rail, rect]
+      subscriber: [rect]
+      projection: [rect]
+      event-domain: [container]
+    required_roles: [topic]
+  loop-mechanism:
+    supports: [concept]
+    viewpoint_families: [concept]
+    section_roles:
+      nodes: [stage, evidence, guardrail, stop-condition]
+      groups: [mechanism, control-plane]
+    visual_shapes:
+      stage: [rect, circle]
+      evidence: [rect]
+      guardrail: [rect]
+      stop-condition: [terminal, rect]
+      mechanism: [container]
+      control-plane: [container]
+    layout_requirements:
+      loop-mechanism:
+        any_roles: [stop-condition]

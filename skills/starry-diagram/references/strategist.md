@@ -2,7 +2,7 @@
 
 Mission: transform source material into a diagram pack plan that is explicit, source-grounded, and safe to execute.
 
-Read `../templates/profiles/diagram_profiles.yaml` and `../templates/layouts/technical_layouts.yaml` before choosing a renderer, layout, or enhancement level. Evaluate `pick_when`, `skip_when`, and `alternatives` for every plausible type and allowed layout. The selected contracts are executable, not suggestions.
+Read `../templates/profiles/diagram_profiles.yaml`, `../templates/layouts/technical_layouts.yaml`, and `../templates/notations/technical_notations.yaml` before choosing a viewpoint, renderer, layout, notation, or enhancement level. Evaluate `pick_when`, `skip_when`, and `alternatives` for every plausible type and allowed layout. The selected contracts are executable, not suggestions.
 
 Outputs:
 - `diagram_manifest.yaml` at the pack root.
@@ -31,11 +31,13 @@ Do not infer services, roles, fields, relationships, states, calls, events, or c
 
 ## Manifest fields
 
-Use `project`, `mode`, `source_summary`, `naming_glossary`, and `diagrams`. `naming_glossary` records pack-level canonical ids and labels so the same entity uses the same identity across diagrams. Each diagram entry records `id`, `title`, `type`, `status`, `reason`, `source_refs`, and `style_id`; generated diagrams also record output directory and `layout_pattern`. A non-preferred pattern also records `layout_reason`. Entries with `needs_clarification` or fact-insufficient `skipped` status include a non-empty `missing` list naming the absent facts.
+Use `contract_version: 3`, `project`, `mode`, `source_summary`, `naming_glossary`, and `diagrams`. `naming_glossary` records pack-level canonical ids and labels so the same entity uses the same identity across diagrams. Each diagram entry records `id`, `title`, `type`, `status`, `reason`, `source_refs`, and `style_id`; generated diagrams also record a distinct `reading_question`, `viewpoint_family`, `notation_profile`, output directory, and `layout_pattern`. A non-preferred viewpoint or pattern also records `viewpoint_reason` or `layout_reason`. Entries with `needs_clarification` or fact-insufficient `skipped` status include a non-empty `missing` list naming the absent facts.
+
+For four or more generated diagrams, evaluate pack diversity after the fact gate. Do not generate a false ER, deployment, ownership, state, or event view to satisfy a quota. If one viewpoint owns more than half the pack or one viewpoint/layout/notation signature appears more than twice, select a fact-complete alternative, split overview/detail companion views, or record a source-grounded `diversity_reason` explaining why repetition is unavoidable.
 
 ## Lock fields
 
-Use `id`, `title`, `type`, `source_format`, `visual_style`, `layout_plan`, `canvas`, `delivery_target`, `style_tokens`, and every semantic section required by the selected profile. Examples include nodes/edges/groups, participants/messages, entities/relationships, states/transitions, or lanes. Edge-like records include `kind: command | event | data | projection | call` whenever command flow, event flow, data flow, projections, or service calls could otherwise be confused.
+Use `contract_version: 3`, `id`, `title`, `type`, `viewpoint_family`, `reading_question`, `notation_profile`, `source_format`, `visual_style`, `layout_plan`, `canvas`, `delivery_target`, `style_tokens`, and every semantic section required by the selected profile. Examples include nodes/edges/groups, participants/messages, entities/relationships, states/transitions, or lanes. Add `notation_role` to every semantic record covered by the selected notation profile. Edge-like records include `kind: command | event | data | projection | call` whenever command flow, event flow, data flow, projections, or service calls could otherwise be confused.
 
 The layout plan selects one allowed catalog pattern, direction, density, and view role; covers every non-container semantic item through `primary_items` or one region; and classifies every edge-like item exactly once as primary, secondary, or control. Follow `layout-planning.md`.
 

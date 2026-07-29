@@ -1,4 +1,4 @@
 interface:
   display_name: "Starry Diagram"
-  short_description: "技术图选型、布局规划、交付尺寸与语义/几何/可读性质量闭环"
-  default_prompt: "Use $starry-diagram to create a technically precise diagram pack with explicit type selection, delivery-size typography, executable semantic and geometry gates, and a target-size technical visual review loop."
+  short_description: "技术图视角选型、标准符号契约、图包多样性与机器质量闭环"
+  default_prompt: "Use $starry-diagram to create a fact-grounded technical diagram pack with distinct viewpoints, executable notation contracts, delivery-size legibility, and machine-verified quality gates."

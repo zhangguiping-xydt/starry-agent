@@ -195,7 +195,8 @@ def build_embed_blocks(diagrams_root: Path) -> dict[str, Any]:
     entries = _manifest_entries(diagrams_root)
     generated_entries = [entry for entry in entries if entry.get("status") == "generated"]
     diagrams = [build_embed_for_diagram(diagrams_root, entry) for entry in generated_entries]
-    warnings = [warning for diagram in diagrams for warning in diagram["warnings"]]
+    warnings = list(manifest_report.get("warnings", []))
+    warnings.extend(warning for diagram in diagrams for warning in diagram["warnings"])
     failed_diagrams = [
         diagram["id"]
         for diagram in diagrams
@@ -210,6 +211,7 @@ def build_embed_blocks(diagrams_root: Path) -> dict[str, Any]:
     report = {
         "status": "failed" if pack_failed else ("passed_with_warnings" if warnings else "passed"),
         "manifest": manifest_report,
+        "diversity": manifest_report.get("diversity", {}),
         "diagrams": diagrams,
         "warnings": warnings,
     }

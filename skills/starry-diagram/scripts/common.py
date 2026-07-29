@@ -85,6 +85,9 @@ def semantic_items(lock: dict[str, Any]) -> list[dict[str, str]]:
                 item["from"] = source
             if isinstance(target, str) and target:
                 item["to"] = target
+            notation_role = value.get("notation_role")
+            if isinstance(notation_role, str) and notation_role:
+                item["notation_role"] = notation_role
             items.append(item)
     return items
 

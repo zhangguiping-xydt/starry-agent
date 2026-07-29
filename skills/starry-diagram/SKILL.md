@@ -11,13 +11,13 @@ Create trustworthy diagram packs from source material. The semantic source is tr
 
 ## Mandatory Pipeline
 
-Source intake → Diagram Strategist → type/layout selection and complexity gate → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → Semantic quality gate → Visual track → geometry/legibility quality gate → target-size preview → technical visual review and revision loop → optional high-density raster delivery → `embed.md` and reports.
+Source intake → Diagram Strategist → type/viewpoint/layout/notation selection and complexity/diversity gate → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → Semantic quality gate → Visual track → notation/geometry/legibility quality gate → target-size preview → technical visual review and revision loop → optional high-density raster delivery → `embed.md` and reports.
 
 Execute every gate with the bundled scripts. A written claim that a gate passed is not sufficient.
 
 ## Default diagram-pack mode
 
-When the user does not specify a diagram type, evaluate architecture/business-architecture/flow/swimlane/sequence/er/state/data-flow/deployment/component/event-flow/concept. Each candidate status must be one of generated/skipped/needs_clarification with a source-grounded reason.
+When the user does not specify a diagram type, evaluate architecture/business-architecture/flow/swimlane/sequence/er/state/data-flow/deployment/component/event-flow/concept. Each candidate status must be one of generated/skipped/needs_clarification with a source-grounded reason. New packs use `contract_version: 3`; every generated entry declares a distinct `reading_question`, a source-grounded `viewpoint_family`, and a compatible `notation_profile`.
 
 ## Fact gate
 
@@ -25,7 +25,9 @@ Do not invent services, roles, fields, relationships, states, calls, events, or 
 
 ## Type profile gate
 
-Before creating a generated entry, read `templates/profiles/diagram_profiles.yaml`, `templates/layouts/technical_layouts.yaml`, and the selected `references/diagram-types/<type>.md`. Evaluate every candidate's `pick_when`, `skip_when`, and `alternatives`; do not choose from positive keyword matches alone. Treat the type profile and selected layout pattern as executable contracts for semantic sections, renderers, composition, complexity limits, routing quality, and enhancement level. Record `layout_pattern` in the manifest and a complete `layout_plan.selection_reason` in the lock. When using an allowed but non-preferred renderer or layout, also record a source-grounded fallback reason.
+Before creating a generated entry, read `templates/profiles/diagram_profiles.yaml`, `templates/layouts/technical_layouts.yaml`, `templates/notations/technical_notations.yaml`, and the selected `references/diagram-types/<type>.md`. Evaluate every candidate's `pick_when`, `skip_when`, and `alternatives`; do not choose from positive keyword matches alone. Treat the type profile, viewpoint, notation profile, and selected layout pattern as executable contracts for semantic sections, renderers, composition, technical symbols, complexity limits, routing quality, and enhancement level. Record `layout_pattern` in the manifest and a complete `layout_plan.selection_reason` in the lock. When using an allowed but non-preferred renderer, viewpoint, or layout, also record a source-grounded fallback reason.
+
+For packs with four or more generated diagrams, evaluate viewpoint and visual-signature repetition before writing locks. Do not force an inapplicable type to satisfy diversity. When the source genuinely supports only repeated views, record `diversity_reason`; otherwise select distinct eligible viewpoints or split overview/detail companion views.
 
 If a candidate exceeds the selected layout pattern's section or total-item limits, split it into overview/detail or separate concern diagrams before creating the lock. Only an explicit user-approved `layout_plan.complexity_exception` may keep an over-budget single diagram.
 
@@ -45,7 +47,7 @@ Treat typography as geometry. Keep each role size stable. When text does not fit
 
 Build and validate the source representation first, then render semantic output, and only then enhance presentation. The semantic track owns nodes, edges, labels, participants, entities, states, messages, cardinalities, and required grouping.
 
-Give every semantic item a stable identity. Use `id="<lock-id>"` in Graphviz/SVG. In Mermaid and PlantUML, add a renderer-safe comment marker `diagram-id:<lock-id>` for every locked item. Run `python scripts/validate_semantic_source.py <diagram_lock.yaml> <source.*>` before rendering.
+Give every semantic item a stable identity and every notation-covered item a source-grounded `notation_role`. Use `id="<lock-id>"` in Graphviz/SVG. In Mermaid and PlantUML, add a renderer-safe comment marker `diagram-id:<lock-id>` for every locked item. Run `python scripts/validate_semantic_source.py <diagram_lock.yaml> <source.*>` before rendering.
 
 ## Visual track rule
 
@@ -53,7 +55,7 @@ Visual enhancement may improve layout, spacing, hierarchy, color, typography, an
 
 Treat outputs as technical diagrams, not presentation slides. Optimize notation fidelity, topology, containment, routing, legibility, and editability. Do not add decorative imagery, gratuitous shadows, or slide chrome.
 
-Every semantic visual group must declare `data-diagram-id` and `data-diagram-kind`. Edge-like items must also declare `data-from` and `data-to`; groups and lanes must declare comma-separated `data-members`. Preserve the exact ids and endpoints from the lock.
+Every semantic visual group must declare `data-diagram-id` and `data-diagram-kind`. Notation-covered items must also declare `data-notation-role`; edge-like items must declare `data-from` and `data-to`; groups and lanes must declare comma-separated `data-members`. Preserve the exact ids, roles, and endpoints from the lock. Metadata alone is insufficient: the visual gate verifies that the real SVG geometry matches the locked notation role.
 
 For medium and strong enhancement, visual.svg must contain a real geometric or typographic improvement. Copying semantic.svg or changing metadata only is a failed visual stage.
 
@@ -87,9 +89,11 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 
 - `templates/profiles/diagram_profiles.yaml` for executable per-type contracts.
 - `templates/layouts/technical_layouts.yaml` for technical composition patterns, budgets, and geometry limits.
+- `templates/notations/technical_notations.yaml` for viewpoint families, semantic roles, and executable visual-shape contracts.
 - `references/diagram-types/<type>.md` for the selected diagram type.
 - `references/strategist.md` for diagram pack planning and locks.
 - `references/layout-planning.md` for the layout-plan schema and construction order.
+- `references/technical-notation.md` for contract v3, pack diversity, notation roles, and compatibility.
 - `references/delivery-and-legibility.md` for delivery viewport, typography roles, and text geometry.
 - `references/technical-visual-review.md` for the mandatory target-size review and revision loop.
 - `references/semantic-executor.md` for Mermaid/PlantUML/Graphviz/source routing.
@@ -112,6 +116,8 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Reviewing a zoomed SVG instead of the target-size PNG or leaving a stale preview-review hash.
 - Uploading the 1× `preview.png` as the final image on a high-DPI raster-only destination instead of declaring and rendering `raster_delivery`.
 - Trusting the SVG font-family string without verifying which installed font the rasterizer actually resolved.
+- Repeating one viewpoint/layout/notation signature across a pack without evaluating fact-complete alternatives.
+- Declaring a decision, datastore, state, boundary, or participant role in metadata while rendering generic card geometry.
 - Leaving semantic items out of `primary_items`/regions or edges out of `edge_roles`.
 - Routing control links repeatedly across the primary flow instead of using a side rail or companion view.
 - Using a renderer or enhancement level that violates the selected type profile.

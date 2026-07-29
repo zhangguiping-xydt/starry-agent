@@ -21,6 +21,12 @@ DEFAULT_PROFILES_PATH = (
 DEFAULT_LAYOUTS_PATH = (
     Path(__file__).resolve().parents[1] / "templates" / "layouts" / "technical_layouts.yaml"
 )
+DEFAULT_NOTATIONS_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "templates"
+    / "notations"
+    / "technical_notations.yaml"
+)
 
 
 def load_profiles(path: Path | None = None) -> dict[str, Any]:
@@ -40,6 +46,24 @@ def load_profiles(path: Path | None = None) -> dict[str, Any]:
                 isinstance(entry, str) and entry.strip() for entry in entries
             ):
                 raise ValueError(f"diagram profile {name} must define non-empty {field}")
+        preferred_viewpoint = value.get("preferred_viewpoint_family")
+        allowed_viewpoints = value.get("allowed_viewpoint_families")
+        preferred_notations = value.get("preferred_notation_profiles")
+        allowed_notations = value.get("allowed_notation_profiles")
+        if not isinstance(preferred_viewpoint, str) or not preferred_viewpoint:
+            raise ValueError(f"diagram profile {name} must define preferred_viewpoint_family")
+        if not isinstance(allowed_viewpoints, list) or preferred_viewpoint not in allowed_viewpoints:
+            raise ValueError(
+                f"diagram profile {name} must allow its preferred viewpoint family"
+            )
+        if not isinstance(preferred_notations, list) or not preferred_notations:
+            raise ValueError(f"diagram profile {name} must define preferred_notation_profiles")
+        if not isinstance(allowed_notations, list) or not set(preferred_notations) <= set(
+            allowed_notations
+        ):
+            raise ValueError(
+                f"diagram profile {name} must allow every preferred notation profile"
+            )
     return data
 
 
@@ -86,6 +110,44 @@ def load_layouts(path: Path | None = None) -> dict[str, Any]:
     return data
 
 
+def load_notations(path: Path | None = None) -> dict[str, Any]:
+    data = read_yaml(path or DEFAULT_NOTATIONS_PATH)
+    viewpoints = data.get("viewpoint_families")
+    notations = data.get("notation_profiles")
+    if not isinstance(viewpoints, Mapping) or not viewpoints:
+        raise ValueError("technical notations must define viewpoint_families")
+    if not isinstance(notations, Mapping) or not notations:
+        raise ValueError("technical notations must define notation_profiles")
+    for name, value in notations.items():
+        if not isinstance(name, str) or not name or not isinstance(value, Mapping):
+            raise ValueError("every notation profile must have a name and mapping body")
+        for field in ("supports", "viewpoint_families", "section_roles", "visual_shapes"):
+            field_value = value.get(field)
+            expected_type = Mapping if field in {"section_roles", "visual_shapes"} else list
+            if not isinstance(field_value, expected_type):
+                raise ValueError(f"notation profile {name} must define {field}")
+            if not field_value:
+                raise ValueError(f"notation profile {name} must define non-empty {field}")
+        if not all(
+            isinstance(entry, str) and entry.strip()
+            for entry in value["supports"] + value["viewpoint_families"]
+        ):
+            raise ValueError(
+                f"notation profile {name} supports and viewpoint_families must contain strings"
+            )
+        for section, roles in value["section_roles"].items():
+            if not isinstance(section, str) or not isinstance(roles, list) or not roles:
+                raise ValueError(
+                    f"notation profile {name} section_roles must map sections to role lists"
+                )
+        for role, shapes in value["visual_shapes"].items():
+            if not isinstance(role, str) or not isinstance(shapes, list) or not shapes:
+                raise ValueError(
+                    f"notation profile {name} visual_shapes must map roles to shape lists"
+                )
+    return data
+
+
 def profile_for(diagram_type: Any, profiles_data: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(diagram_type, str):
         return None
@@ -100,6 +162,14 @@ def layout_for(pattern: Any, layouts_data: dict[str, Any]) -> dict[str, Any] | N
     patterns = layouts_data.get("patterns", {})
     layout = patterns.get(pattern) if isinstance(patterns, Mapping) else None
     return dict(layout) if isinstance(layout, Mapping) else None
+
+
+def notation_for(name: Any, notations_data: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(name, str):
+        return None
+    notations = notations_data.get("notation_profiles", {})
+    notation = notations.get(name) if isinstance(notations, Mapping) else None
+    return dict(notation) if isinstance(notation, Mapping) else None
 
 
 def enhancement_rank(level: Any, profiles_data: dict[str, Any]) -> int | None:

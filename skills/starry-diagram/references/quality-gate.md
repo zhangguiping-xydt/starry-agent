@@ -28,6 +28,8 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Delivery target defines the actual embedding viewport and legibility thresholds.
 - Technical style defines required colors, font family, and every typography role.
 - Layout selection has a source-grounded reason after Pick/Skip/Alternative evaluation.
+- Contract v3 locks declare viewpoint, reading question, notation profile, and valid notation roles.
+- Layout-specific notation signatures exist, such as a decision in a branching flow or a boundary in a layered architecture.
 
 ## Manifest checks
 
@@ -37,6 +39,8 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Skipped and needs_clarification entries name the missing facts.
 - Generated entry id, type, renderer, style, and enhancement level match diagram_lock.yaml.
 - Generated entry layout pattern matches diagram_lock.yaml.
+- Contract v3 generated entries declare distinct reading questions and compatible viewpoint/notation profiles.
+- Repeated pack viewpoints or visual signatures have a source-grounded diversity reason only when no fact-complete alternative exists.
 
 ## Semantic checks
 
@@ -54,6 +58,8 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - No text falls below the minimum effective font size after scaling into the delivery viewport.
 - Every semantic id is present exactly once through stable metadata or a supported renderer id.
 - Edge endpoints and group/lane memberships match the lock.
+- Every locked notation role matches `data-notation-role` and a permitted real SVG shape.
+- Decisions, lifelines, datastores, terminals, boundaries, lanes, and state markers cannot be replaced by generic rectangles.
 - No unlisted semantic identity is introduced.
 - Medium and strong enhancement are not geometry-identical to semantic.svg.
 - Every non-container semantic item is covered by the layout plan and every edge has one visual role.
@@ -81,6 +87,8 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 | --- | --- |
 | Missing source facts | Mark skipped or needs_clarification in manifest |
 | Invalid profile, routing, or lock | Stop before semantic source generation |
+| Repeated viewpoint or visual signature | Select a fact-complete alternate view, split companion views, or record why repetition is unavoidable |
+| Notation role or geometry mismatch | Use the selected technical symbol; metadata-only relabeling is not a fix |
 | Semantic mismatch | Fail semantic gate; do not render |
 | Renderer unavailable | Write render_unavailable and a failed check report |
 | Visual semantic drift | Write visual_failed; keep semantic artifacts |

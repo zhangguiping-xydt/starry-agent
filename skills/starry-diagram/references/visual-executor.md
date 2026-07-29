@@ -2,7 +2,7 @@
 
 Enhance presentation after the semantic quality gate passes. When asked for a polished SVG or to describe `visual.svg`, explicitly state that `source.*` and `semantic.svg` must be generated and validated before `visual.svg`; the visual track is never the starting point.
 
-The output is a technical diagram. Prioritize notation fidelity, topology, containment, routing, legibility, and editability. Do not introduce slide chrome, decorative imagery, or effects that do not improve technical reading.
+The output is a technical diagram. Read `../templates/notations/technical_notations.yaml` and `technical-notation.md` before editing geometry. Prioritize notation fidelity, topology, containment, routing, legibility, and editability. Do not introduce slide chrome, decorative imagery, or effects that do not improve technical reading.
 
 ## Allowed changes
 
@@ -11,6 +11,7 @@ The output is a technical diagram. Prioritize notation fidelity, topology, conta
 - Normalize canvas size and viewBox while keeping all semantic labels visible.
 - Apply the exact role sizes from `style_tokens.typography`; put `data-text-role` on every visible text element.
 - Add stable semantic metadata required by the visual gate.
+- Render each locked `notation_role` with one of its permitted real SVG shapes.
 
 ## Forbidden changes
 
@@ -19,6 +20,7 @@ The output is a technical diagram. Prioritize notation fidelity, topology, conta
 - Using colors, fonts, icons, or effects outside `style_tokens` unless the lock is updated by the strategist first.
 - Shrinking one label, clipping text, or changing `delivery_target` to avoid a legibility failure.
 - Moving an activity outside its lane, a component outside its boundary, or a message outside its locked order.
+- Replacing a decision, datastore, state marker, boundary, lane, or lifeline with a generic card.
 
 ## Enhancement levels
 
@@ -45,7 +47,7 @@ Treat typography as geometry. Measure or conservatively estimate text first, all
 
 ## Semantic metadata
 
-Wrap every semantic visual item in a group with `data-diagram-id` and `data-diagram-kind`. Edge-like items also carry `data-from` and `data-to`. Groups and lanes carry `data-members="id-a,id-b"`. These attributes make semantic equivalence machine-verifiable and do not affect rendering.
+Wrap every semantic visual item in a group with `data-diagram-id` and `data-diagram-kind`. Notation-covered items carry `data-notation-role`; edge-like items also carry `data-from` and `data-to`. Groups and lanes carry `data-members="id-a,id-b"`. These attributes make semantic equivalence machine-verifiable and do not affect rendering. The validator still inspects actual SVG geometry, so metadata cannot substitute for a diamond, lifeline, boundary, datastore, or terminal shape.
 
 When the renderer already preserves lock ids, stamp the remaining metadata deterministically:
 

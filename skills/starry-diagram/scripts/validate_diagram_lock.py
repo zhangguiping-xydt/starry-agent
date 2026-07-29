@@ -9,13 +9,29 @@ from typing import Any
 
 try:
     from common import parse_viewbox, read_yaml, semantic_items, write_json
-    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
+    from notation import validate_lock_notation
+    from profiles import (
+        enhancement_rank,
+        layout_for,
+        load_layouts,
+        load_notations,
+        load_profiles,
+        profile_for,
+    )
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import parse_viewbox, read_yaml, semantic_items, write_json
-    from profiles import enhancement_rank, layout_for, load_layouts, load_profiles, profile_for
+    from notation import validate_lock_notation
+    from profiles import (
+        enhancement_rank,
+        layout_for,
+        load_layouts,
+        load_notations,
+        load_profiles,
+        profile_for,
+    )
 
 
 _REQUIRED_TOP_LEVEL_KEYS = (
@@ -579,6 +595,7 @@ def validate_lock(
     *,
     profiles_data: dict[str, Any] | None = None,
     layouts_data: dict[str, Any] | None = None,
+    notations_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -588,6 +605,12 @@ def validate_lock(
 
     profiles_data = profiles_data or load_profiles()
     layouts_data = layouts_data or load_layouts()
+    notations_data = notations_data or load_notations()
+    raw_version = lock.get("contract_version")
+    if raw_version is not None and (
+        not isinstance(raw_version, int) or isinstance(raw_version, bool) or raw_version < 2
+    ):
+        errors.append("contract_version must be an integer of at least 2")
     for key in _REQUIRED_TOP_LEVEL_KEYS:
         if key not in lock:
             errors.append(f"missing required top-level key: {key}")
@@ -633,6 +656,13 @@ def validate_lock(
     if isinstance(diagram_type, str):
         _validate_type_semantics(lock, diagram_type, errors, warnings)
     _validate_layout_plan(lock, profile, layouts_data, errors, warnings)
+    notation_report, notation_errors, notation_warnings = validate_lock_notation(
+        lock,
+        profile,
+        notations_data,
+    )
+    errors.extend(notation_errors)
+    warnings.extend(notation_warnings)
 
     semantic_id_counts = Counter(item["id"] for item in semantic_items(lock))
     duplicate_semantic_ids = sorted(
@@ -641,7 +671,12 @@ def validate_lock(
     if duplicate_semantic_ids:
         errors.append(f"semantic ids must be globally unique: {duplicate_semantic_ids}")
 
-    return {"status": "failed" if errors else "passed", "errors": errors, "warnings": warnings}
+    return {
+        "status": "failed" if errors else "passed",
+        "errors": errors,
+        "warnings": warnings,
+        "notation": notation_report,
+    }
 
 
 def validate_lock_file(
@@ -649,11 +684,13 @@ def validate_lock_file(
     *,
     profiles_path: Path | None = None,
     layouts_path: Path | None = None,
+    notations_path: Path | None = None,
 ) -> dict[str, Any]:
     return validate_lock(
         read_yaml(path),
         profiles_data=load_profiles(profiles_path),
         layouts_data=load_layouts(layouts_path),
+        notations_data=load_notations(notations_path),
     )
 
 
@@ -662,6 +699,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("lock_file", type=Path)
     parser.add_argument("--profiles", type=Path)
     parser.add_argument("--layouts", type=Path)
+    parser.add_argument("--notations", type=Path)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args(argv)
 
@@ -669,6 +707,7 @@ def main(argv: list[str] | None = None) -> int:
         args.lock_file,
         profiles_path=args.profiles,
         layouts_path=args.layouts,
+        notations_path=args.notations,
     )
     if args.report is not None:
         write_json(args.report, report)

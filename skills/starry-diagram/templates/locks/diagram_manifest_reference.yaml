@@ -1,3 +1,4 @@
+contract_version: 3
 project: 示例项目
 mode: diagram-pack
 source_summary: 基于需求、PRD、技术设计和架构笔记提取的图谱候选。
@@ -11,6 +12,9 @@ diagrams:
   - id: architecture-overview
     title: 架构总览
     type: architecture
+    viewpoint_family: structure
+    reading_question: 用户请求经过哪些系统边界和核心组件？
+    notation_profile: architecture-structure
     status: generated
     reason: source includes modules, services, stores, runtime boundaries, and external systems.
     source_refs:

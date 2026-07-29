@@ -1,6 +1,10 @@
+contract_version: 3
 id: architecture-overview
 title: 架构总览
 type: architecture
+viewpoint_family: structure
+reading_question: 用户请求经过哪些系统边界和核心组件？
+notation_profile: architecture-structure
 source_format: graphviz
 visual_style:
   style_id: clean-technical
@@ -41,10 +45,12 @@ nodes:
   - id: frontend-chat-entry
     label: 前端对话入口
     kind: ui
+    notation_role: external-system
     required: true
   - id: workflow-orchestration-service
     label: 工作流编排服务
     kind: service
+    notation_role: service
     required: true
 edges:
   - id: frontend-to-workflow
@@ -55,6 +61,7 @@ edges:
 groups:
   - id: application-runtime
     label: 应用运行时
+    notation_role: boundary
     members:
       - frontend-chat-entry
       - workflow-orchestration-service

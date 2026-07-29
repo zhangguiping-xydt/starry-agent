@@ -23,13 +23,13 @@ from build_check_report import build_check_report  # noqa: E402
 from build_embed_blocks import build_embed_blocks  # noqa: E402
 import font_resolution  # noqa: E402
 from font_resolution import parse_font_stack, validate_font_resolution  # noqa: E402
-from profiles import load_layouts, load_profiles  # noqa: E402
+from profiles import load_layouts, load_notations, load_profiles  # noqa: E402
 from render_delivery_raster import raster_dimensions, validate_delivery_raster  # noqa: E402
 from render_preview import png_dimensions, render_preview, target_dimensions  # noqa: E402
 from render_svg import render_svg  # noqa: E402
 from stamp_visual_metadata import stamp_visual_metadata  # noqa: E402
 from validate_diagram_lock import validate_lock  # noqa: E402
-from validate_diagram_manifest import validate_manifest_file  # noqa: E402
+from validate_diagram_manifest import validate_manifest, validate_manifest_file  # noqa: E402
 from validate_preview_review import REQUIRED_CHECKS, validate_preview_review  # noqa: E402
 from validate_semantic_source import validate_semantic_source  # noqa: E402
 from validate_visual_svg import validate_visual_svg  # noqa: E402
@@ -344,6 +344,18 @@ def test_profiles_cover_every_diagram_type_reference() -> None:
         assert layout["alternatives"]
 
 
+def test_profiles_reference_valid_notation_contracts() -> None:
+    notations = load_notations()
+    notation_profiles = notations["notation_profiles"]
+    viewpoint_families = set(notations["viewpoint_families"])
+    for diagram_type, profile in load_profiles()["profiles"].items():
+        assert set(profile["allowed_viewpoint_families"]) <= viewpoint_families
+        for notation_name in profile["allowed_notation_profiles"]:
+            notation = notation_profiles[notation_name]
+            assert diagram_type in notation["supports"]
+            assert set(notation["viewpoint_families"]) <= viewpoint_families
+
+
 def test_preview_review_template_matches_validator_contract() -> None:
     template = yaml.safe_load(
         (SKILL_DIR / "templates" / "locks" / "preview_review_reference.yaml").read_text(
@@ -518,6 +530,67 @@ def test_lock_validates_high_density_raster_contract() -> None:
     assert any("pixel_ratio" in error for error in report["errors"])
 
     lock["raster_delivery"]["pixel_ratio"] = 2
+    assert validate_lock(lock)["status"] == "passed"
+
+
+def test_v3_lock_enforces_notation_roles_and_layout_signature() -> None:
+    lock = _architecture_lock()
+    lock.update(
+        {
+            "contract_version": 3,
+            "viewpoint_family": "structure",
+            "reading_question": "Which components and boundaries handle a request?",
+            "notation_profile": "architecture-structure",
+        }
+    )
+    lock["nodes"][0]["notation_role"] = "external-system"
+    lock["nodes"][1]["notation_role"] = "service"
+    lock["groups"][0]["notation_role"] = "boundary"
+    report = validate_lock(lock)
+    assert report["status"] == "passed"
+    assert report["notation"]["role_counts"] == {
+        "boundary": 1,
+        "external-system": 1,
+        "service": 1,
+    }
+
+    del lock["groups"][0]["notation_role"]
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("must define notation_role" in error for error in report["errors"])
+
+
+def test_v3_branching_flow_requires_decision_role() -> None:
+    lock = _base_lock("flow", "mermaid", "medium")
+    lock.update(
+        {
+            "contract_version": 3,
+            "viewpoint_family": "decision",
+            "reading_question": "Which branch is taken?",
+            "notation_profile": "activity-flow",
+        }
+    )
+    lock["nodes"] = [
+        {"id": "entry", "label": "Entry", "notation_role": "process"},
+        {"id": "accepted", "label": "Accepted", "notation_role": "process"},
+        {"id": "rejected", "label": "Rejected", "notation_role": "process"},
+    ]
+    lock["edges"] = [
+        {"id": "yes", "from": "entry", "to": "accepted", "label": "Yes"},
+        {"id": "no", "from": "entry", "to": "rejected", "label": "No"},
+    ]
+    lock["layout_plan"] = _layout_plan(
+        "branching-flow",
+        "left-to-right",
+        ["entry", "accepted", "rejected"],
+        ["yes"],
+        secondary_edges=["no"],
+    )
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("requires at least one role" in error for error in report["errors"])
+
+    lock["nodes"][0]["notation_role"] = "decision"
     assert validate_lock(lock)["status"] == "passed"
 
 
@@ -729,6 +802,86 @@ def test_visual_rejects_edge_through_nonendpoint_node(tmp_path: Path) -> None:
         {"edge": "a-b", "node": "middle"}
     ]
     assert any("nonendpoint-node" in error for error in report["visual"]["errors"])
+
+
+def test_v3_visual_rejects_decision_rendered_as_process_box(tmp_path: Path) -> None:
+    lock = _base_lock("flow", "mermaid", "medium")
+    lock.update(
+        {
+            "contract_version": 3,
+            "viewpoint_family": "decision",
+            "reading_question": "Which outcome follows the check?",
+            "notation_profile": "activity-flow",
+            "canvas": {
+                "mode": "fixed",
+                "width": 420,
+                "height": 220,
+                "viewBox": "0 0 420 220",
+            },
+            "delivery_target": _delivery_target(420, 220),
+        }
+    )
+    lock["nodes"] = [
+        {"id": "check", "label": "Check?", "notation_role": "decision"},
+        {"id": "accepted", "label": "Accepted", "notation_role": "process"},
+        {"id": "rejected", "label": "Rejected", "notation_role": "process"},
+    ]
+    lock["edges"] = [
+        {"id": "yes", "from": "check", "to": "accepted", "label": "Yes"},
+        {"id": "no", "from": "check", "to": "rejected", "label": "No"},
+    ]
+    lock["layout_plan"] = _layout_plan(
+        "branching-flow",
+        "left-to-right",
+        ["check", "accepted", "rejected"],
+        ["yes"],
+        secondary_edges=["no"],
+    )
+    lock_path = tmp_path / "diagram_lock.yaml"
+    svg_path = tmp_path / "visual.svg"
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 220">
+  <rect width="420" height="220" fill="#f8fafc"/>
+  <g data-diagram-id="check" data-diagram-kind="node" data-notation-role="decision">
+    <rect x="40" y="70" width="120" height="80" fill="#ffffff" stroke="#2563eb"/>
+    <text x="100" y="110" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Check?</text>
+  </g>
+  <g data-diagram-id="accepted" data-diagram-kind="node" data-notation-role="process">
+    <rect x="280" y="45" width="110" height="50" fill="#ffffff" stroke="#2563eb"/>
+    <text x="335" y="70" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Accepted</text>
+  </g>
+  <g data-diagram-id="rejected" data-diagram-kind="node" data-notation-role="process">
+    <rect x="280" y="135" width="110" height="50" fill="#ffffff" stroke="#2563eb"/>
+    <text x="335" y="160" text-anchor="middle" dominant-baseline="middle" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Rejected</text>
+  </g>
+  <g data-diagram-id="yes" data-diagram-kind="edge" data-from="check" data-to="accepted">
+    <path d="M160 95 H220 V70 H280" fill="none" stroke="#94a3b8"/>
+    <text x="220" y="62" text-anchor="middle" font-family="Noto Sans CJK SC" font-size="14" data-text-role="edge-label" fill="#64748b">Yes</text>
+  </g>
+  <g data-diagram-id="no" data-diagram-kind="edge" data-from="check" data-to="rejected">
+    <path d="M160 125 H220 V160 H280" fill="none" stroke="#94a3b8"/>
+    <text x="220" y="178" text-anchor="middle" font-family="Noto Sans CJK SC" font-size="14" data-text-role="edge-label" fill="#64748b">No</text>
+  </g>
+</svg>'''
+    svg_path.write_text(svg, encoding="utf-8")
+    report = validate_visual_svg(lock_path, svg_path)
+    assert report["status"] == "failed"
+    assert any("must render as one of ['diamond']" in error for error in report["visual"]["errors"])
+
+    svg_path.write_text(
+        svg.replace(
+            '<rect x="40" y="70" width="120" height="80" fill="#ffffff" stroke="#2563eb"/>',
+            '<polygon points="100,70 160,110 100,150 40,110" fill="#ffffff" stroke="#2563eb"/>',
+        ),
+        encoding="utf-8",
+    )
+    passed = validate_visual_svg(lock_path, svg_path)
+    assert passed["status"] == "passed"
+    assert passed["visual"]["notation"]["verified"] == [
+        "accepted",
+        "check",
+        "rejected",
+    ]
 
 
 def test_visual_enforces_edge_label_role_size(tmp_path: Path) -> None:
@@ -1019,6 +1172,39 @@ def test_stamp_visual_metadata_adds_endpoints_and_members(tmp_path: Path) -> Non
     assert 'data-members="node-a,node-b"' in stamped
 
 
+def test_stamp_visual_metadata_adds_locked_notation_roles(tmp_path: Path) -> None:
+    lock = _architecture_lock()
+    lock.update(
+        {
+            "contract_version": 3,
+            "viewpoint_family": "structure",
+            "reading_question": "Which components handle the request?",
+            "notation_profile": "architecture-structure",
+        }
+    )
+    lock["nodes"][0]["notation_role"] = "external-system"
+    lock["nodes"][1]["notation_role"] = "service"
+    lock["groups"][0]["notation_role"] = "boundary"
+    lock_path = tmp_path / "diagram_lock.yaml"
+    svg_path = tmp_path / "visual.svg"
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    svg_path.write_text(
+        '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120">
+  <g id="runtime"><rect x="5" y="5" width="250" height="110"/></g>
+  <g id="node-a"><rect x="20" y="45" width="70" height="40"/></g>
+  <g id="node-b"><rect x="170" y="45" width="70" height="40"/></g>
+  <g id="a-to-b"><path d="M90 65 H170"/></g>
+</svg>''',
+        encoding="utf-8",
+    )
+    result = stamp_visual_metadata(lock_path, svg_path, svg_path)
+    assert result["status"] == "passed"
+    stamped = svg_path.read_text(encoding="utf-8")
+    assert 'data-notation-role="boundary"' in stamped
+    assert 'data-notation-role="external-system"' in stamped
+    assert 'data-notation-role="service"' in stamped
+
+
 def test_metadata_reserialization_does_not_bypass_noop_gate(tmp_path: Path) -> None:
     diagram_dir = _write_diagram(tmp_path, visual_shifted=False)
     result = stamp_visual_metadata(
@@ -1085,12 +1271,87 @@ def test_manifest_and_pack_report_pass_only_when_lock_contract_matches(tmp_path:
 
     manifest_report = validate_manifest_file(manifest_path, root=tmp_path)
     assert manifest_report["status"] == "passed"
-    assert build_embed_blocks(tmp_path)["status"] == "passed"
+    pack_report = build_embed_blocks(tmp_path)
+    assert pack_report["status"] == "passed_with_warnings"
+    assert pack_report["diversity"]["generated_count"] == 1
 
     _write_manifest(tmp_path, source_format="mermaid")
     mismatch_report = validate_manifest_file(manifest_path, root=tmp_path)
     assert mismatch_report["status"] == "failed"
     assert any("does not match lock" in error for error in mismatch_report["errors"])
+
+
+def test_v3_manifest_rejects_legacy_lock_even_when_view_fields_match(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    lock_path = diagram_dir / "diagram_lock.yaml"
+    lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+    lock.update(
+        {
+            "viewpoint_family": "structure",
+            "reading_question": "Which components handle the request?",
+            "notation_profile": "architecture-structure",
+        }
+    )
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    manifest_path = _write_manifest(tmp_path)
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    manifest["contract_version"] = 3
+    manifest["diagrams"][0].update(
+        {
+            "viewpoint_family": "structure",
+            "reading_question": "Which components handle the request?",
+            "notation_profile": "architecture-structure",
+        }
+    )
+    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
+
+    report = validate_manifest_file(manifest_path, root=tmp_path)
+    assert report["status"] == "failed"
+    assert any("requires a v3 lock" in error for error in report["errors"])
+
+
+def test_v3_manifest_enforces_distinct_questions_and_pack_diversity() -> None:
+    diagrams = []
+    for index in range(4):
+        diagrams.append(
+            {
+                "id": f"flow-{index}",
+                "title": f"Flow {index}",
+                "type": "flow",
+                "viewpoint_family": "behavior",
+                "reading_question": f"How does flow {index} progress?",
+                "notation_profile": "activity-flow",
+                "status": "generated",
+                "reason": "The source defines ordered work.",
+                "source_refs": [f"source.md#{index}"],
+                "style_id": "clean-technical",
+                "source_format": "mermaid",
+                "enhancement_level": "medium",
+                "layout_pattern": "linear-flow",
+                "directory": f"flow-{index}",
+            }
+        )
+    manifest = {
+        "contract_version": 3,
+        "project": "Diversity example",
+        "mode": "diagram-pack",
+        "source_summary": "Four source-grounded procedures.",
+        "diagrams": diagrams,
+    }
+    without_reason = validate_manifest(manifest)
+    assert without_reason["status"] == "failed"
+    assert without_reason["diversity"]["viewpoint_counts"] == {"behavior": 4}
+    assert any("diversity_reason" in error for error in without_reason["errors"])
+
+    manifest["diversity_reason"] = (
+        "The source contains four independent procedures and no fact-complete alternate view."
+    )
+    assert validate_manifest(manifest)["status"] == "passed"
+
+    diagrams[1]["reading_question"] = diagrams[0]["reading_question"]
+    duplicate = validate_manifest(manifest)
+    assert duplicate["status"] == "failed"
+    assert any("distinct reading questions" in error for error in duplicate["errors"])
 
 
 def test_render_svg_copies_valid_source_and_rejects_invalid_xml(tmp_path: Path) -> None:

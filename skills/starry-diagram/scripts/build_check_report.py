@@ -62,6 +62,7 @@ def build_check_report(
     *,
     profiles_path: Path | None = None,
     layouts_path: Path | None = None,
+    notations_path: Path | None = None,
 ) -> dict[str, Any]:
     lock_path = diagram_dir / "diagram_lock.yaml"
     semantic_path = diagram_dir / "semantic.svg"
@@ -77,6 +78,7 @@ def build_check_report(
             lock_path,
             profiles_path=profiles_path,
             layouts_path=layouts_path,
+            notations_path=notations_path,
         )
         source_path = diagram_dir / source_filename(lock.get("source_format"))
     else:
@@ -96,6 +98,7 @@ def build_check_report(
             semantic_path=semantic_path,
             profiles_path=profiles_path,
             layouts_path=layouts_path,
+            notations_path=notations_path,
         )
         if lock_path.exists() and semantic_path.exists() and visual_path.exists()
         else _missing_report("semantic.svg or visual.svg", visual_path)
@@ -178,12 +181,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("diagram_dir", type=Path)
     parser.add_argument("--profiles", type=Path)
     parser.add_argument("--layouts", type=Path)
+    parser.add_argument("--notations", type=Path)
     args = parser.parse_args(argv)
 
     report = build_check_report(
         args.diagram_dir,
         profiles_path=args.profiles,
         layouts_path=args.layouts,
+        notations_path=args.notations,
     )
     return 0 if report["status"] == "passed" else 1
 

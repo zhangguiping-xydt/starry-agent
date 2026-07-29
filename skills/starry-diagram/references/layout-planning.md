@@ -1,6 +1,6 @@
 # Layout Planning
 
-Select a technical composition before writing semantic source or visual SVG. Read `../templates/layouts/technical_layouts.yaml`, evaluate every allowed pattern's `pick_when`, `skip_when`, and `alternatives`, and record the selected pattern in both the manifest and lock. A positive keyword match is insufficient when a skip condition applies.
+Select a reading viewpoint, notation profile, and technical composition before writing semantic source or visual SVG. Read `../templates/notations/technical_notations.yaml` and `../templates/layouts/technical_layouts.yaml`, evaluate every allowed pattern's `pick_when`, `skip_when`, and `alternatives`, and record the selected notation and pattern in both the manifest and lock. A positive keyword match is insufficient when a skip condition applies.
 
 ## Layout plan contract
 
@@ -55,7 +55,7 @@ The validator rejects an unapproved exception and reports an approved exception 
 
 ## Construction order
 
-1. Allocate canvas regions, lanes, layers, boundaries, or rails.
+1. Allocate canvas regions, lanes, layers, boundaries, or rails required by the notation profile.
 2. Place `primary_items` on the dominant reading axis.
 3. Place region members and secondary items without disturbing the primary path.
 4. Route primary edges, then secondary edges, then control edges.

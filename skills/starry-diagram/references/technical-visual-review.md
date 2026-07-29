@@ -5,7 +5,7 @@ Run this review after static visual validation and target-size preview rendering
 ## Review loop
 
 1. Open `preview.png` at 100%.
-2. Evaluate every check below against the locked diagram type, layout pattern, and `view_role`.
+2. Evaluate every check below against the locked diagram type, viewpoint, notation profile, layout pattern, and `view_role`.
 3. Fix the SVG when a check fails. Preserve semantics and typography roles, then rerun visual validation and preview rendering.
 4. Repeat until every check passes.
 5. Copy `../templates/locks/preview_review_reference.yaml` to `preview_review.yaml` and replace both SHA-256 values with the reviewed preview and source visual hashes.
@@ -51,3 +51,5 @@ findings:
 ```
 
 The final artifact may contain resolved findings, but every finding must set `resolved: true`, the preview and visual hashes must match the current artifacts, and all required checks must be `passed`.
+
+This review supplements machine validation. It cannot override a failed notation-role, geometry, manifest-diversity, or semantic gate.

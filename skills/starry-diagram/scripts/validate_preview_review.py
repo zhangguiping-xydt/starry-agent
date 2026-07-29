@@ -23,6 +23,8 @@ REQUIRED_CHECKS = (
     "edge_label_ownership",
     "emphasis_matches_view_role",
     "technical_notation_fidelity",
+    "semantic_roles_readable",
+    "density_and_whitespace",
     "no_slide_chrome",
 )
 

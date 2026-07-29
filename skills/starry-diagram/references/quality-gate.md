@@ -24,6 +24,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - A non-preferred renderer has a source-grounded `renderer_reason`.
 - Enhancement level meets the type minimum.
 - Type-specific semantic sections exist and are internally valid.
+- Type-native semantic grammar passes: process/data-object separation, decision/merge topology, standard state pseudo-states, contiguous sequence order and density mitigation, and explicit loop feedback.
 - Fixed canvas dimensions and viewBox agree; auto canvas bounds are valid.
 - Delivery target defines the actual embedding viewport and legibility thresholds.
 - Contract v4 defines pack visual behavior separately from palette, typography, stroke language, and texture; resolved style tokens exactly match the pack identity.
@@ -49,6 +50,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Every locked label is present.
 - Endpoints and memberships reference existing semantic ids.
 - Sequence order, ER fields/keys/cardinalities, state transitions, and swimlane ownership pass their type rules.
+- Sequence call/return kinds and phase fragments remain source-grounded; high-density scenarios cannot pass as one ungrouped message wall.
 
 ## Visual checks
 
@@ -62,6 +64,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Edge endpoints and group/lane memberships match the lock.
 - Every locked notation role matches `data-notation-role` and a permitted real SVG shape.
 - Decisions, lifelines, datastores, terminals, boundaries, lanes, and state markers cannot be replaced by generic rectangles.
+- Flow data objects render as note/data-object geometry, state initial/final markers use standard pseudo-state geometry, and sequence returns use dashed connectors while calls remain solid.
 - No unlisted semantic identity is introduced.
 - Medium and strong enhancement are not geometry-identical to semantic.svg.
 - Every non-container semantic item is covered by the layout plan and every edge has one visual role.
@@ -92,6 +95,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 | Repeated viewpoint or visual signature | Select a fact-complete alternate view, split companion views, or record why repetition is unavoidable |
 | Three or more technical types collapse into one rounded-card signature | Use type-native renderers; use `visual_diversity_reason` only when the source truly prevents a distinct technical treatment |
 | Notation role or geometry mismatch | Use the selected technical symbol; metadata-only relabeling is not a fix |
+| Type-native semantic grammar failure | Reclassify the semantic item, repair topology, add source-grounded sequence fragments, or split the diagram; do not silence the rule with styling |
 | Semantic mismatch | Fail semantic gate; do not render |
 | Renderer unavailable | Write render_unavailable and a failed check report |
 | Visual semantic drift | Write visual_failed; keep semantic artifacts |

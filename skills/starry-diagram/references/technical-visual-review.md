@@ -21,6 +21,8 @@ Run this review after static visual validation and target-size preview rendering
 | `edge_label_ownership` | Direction and label-to-edge ownership are visually obvious, including loops, exceptions, and long routes. |
 | `emphasis_matches_view_role` | Overview emphasizes topology and boundaries; detail emphasizes the selected mechanism without making secondary information compete with the primary path. |
 | `technical_notation_fidelity` | Arrow direction, cardinality, participant order, state notation, containment, and edge kinds preserve the lock. |
+| `semantic_roles_readable` | Actions, decisions, data objects, states, participants, stores, boundaries, and control/feedback relations are distinguishable by geometry and placement without reading metadata. |
+| `density_and_whitespace` | The target-size image has no message wall, stranded region, oversized store/control area, or large empty band that weakens the primary reading path. |
 | `no_slide_chrome` | The diagram does not add page furniture, decorative card grids, hero copy, badges, or imagery unrelated to technical reading. |
 
 ## Review artifact
@@ -37,6 +39,8 @@ checks:
   edge_label_ownership: passed
   emphasis_matches_view_role: passed
   technical_notation_fidelity: passed
+  semantic_roles_readable: passed
+  density_and_whitespace: passed
   no_slide_chrome: passed
 findings: []
 ```

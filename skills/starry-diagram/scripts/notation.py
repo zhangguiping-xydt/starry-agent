@@ -210,6 +210,22 @@ def _has_lifeline(element: Any) -> bool:
     return False
 
 
+def _is_note(element: Any) -> bool:
+    polygons = _descendants(element, "polygon")
+    paths = _descendants(element, "path")
+    return bool(polygons or paths)
+
+
+def _is_initial_marker(element: Any) -> bool:
+    circles = _descendants(element, "circle") + _descendants(element, "ellipse")
+    return len(circles) == 1 and not _descendants(element, "rect")
+
+
+def _is_final_marker(element: Any) -> bool:
+    circles = _descendants(element, "circle") + _descendants(element, "ellipse")
+    return len(circles) >= 2 and not _descendants(element, "rect")
+
+
 def _matches_shape(element: Any, shape: str) -> bool:
     if shape == "rect":
         return bool(_descendants(element, "rect"))
@@ -235,6 +251,12 @@ def _matches_shape(element: Any, shape: str) -> bool:
         )
     if shape == "lifeline":
         return _has_lifeline(element)
+    if shape == "note":
+        return _is_note(element)
+    if shape == "initial-marker":
+        return _is_initial_marker(element)
+    if shape == "final-marker":
+        return _is_final_marker(element)
     if shape == "event-rail":
         return bool(_descendants(element, "line") or _descendants(element, "path"))
     return False
@@ -285,9 +307,37 @@ def validate_visual_notation(
             continue
         verified.append(item_id)
 
+    message_kinds_verified: list[str] = []
+    if lock.get("type") == "sequence":
+        messages = lock.get("messages", [])
+        if isinstance(messages, list):
+            for message in messages:
+                if not isinstance(message, Mapping):
+                    continue
+                item_id = message.get("id")
+                kind = message.get("kind")
+                element = elements.get(item_id) if isinstance(item_id, str) else None
+                if element is None or kind not in {"call", "return"}:
+                    continue
+                paths = _descendants(element, "path") + _descendants(element, "line")
+                dashed = any(
+                    bool(path.attrib.get("stroke-dasharray", "").strip()) for path in paths
+                )
+                if kind == "return" and not dashed:
+                    errors.append(
+                        f"sequence return message {item_id} must render with a dashed connector"
+                    )
+                elif kind == "call" and dashed:
+                    errors.append(
+                        f"sequence call message {item_id} must render with a solid connector"
+                    )
+                else:
+                    message_kinds_verified.append(item_id)
+
     return {
         "checked": True,
         "contract_version": version,
         "notation_profile": notation_name,
         "verified": sorted(verified),
+        "message_kinds_verified": sorted(message_kinds_verified),
     }, errors, warnings

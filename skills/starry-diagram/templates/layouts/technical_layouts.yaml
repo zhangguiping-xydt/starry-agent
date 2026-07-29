@@ -1,4 +1,4 @@
-version: 2
+version: 3
 patterns:
   layered-system:
     summary: Stack technical layers or runtime tiers with dependencies flowing in one direction.
@@ -227,10 +227,16 @@ patterns:
       max_edge_node_intersections: 99
       max_long_edge_ratio: 0.9
       min_analyzable_edge_fraction: 0.8
+    readability_limits:
+      max_participants_without_fragments: 7
+      max_messages_without_fragments: 18
+      max_messages_per_phase: 12
     rules:
       - Keep participant order stable and messages strictly top-to-bottom.
       - Use activation or grouping bands instead of moving messages out of order.
-      - Split scenarios when more than ten participants are required.
+      - Partition the message stream with contiguous phase fragments when the soft density budget is exceeded.
+      - Keep alt/opt/loop/ref fragments for source-grounded control semantics; they do not replace density phases.
+      - Split scenarios when phases cannot stay within the readable message budget.
   er-domain-grid:
     summary: Arrange entities by domain with orthogonal relationship routing.
     supports: [er]

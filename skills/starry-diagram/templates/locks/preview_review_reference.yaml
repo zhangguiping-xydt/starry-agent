@@ -9,5 +9,7 @@ checks:
   edge_label_ownership: passed
   emphasis_matches_view_role: passed
   technical_notation_fidelity: passed
+  semantic_roles_readable: passed
+  density_and_whitespace: passed
   no_slide_chrome: passed
 findings: []

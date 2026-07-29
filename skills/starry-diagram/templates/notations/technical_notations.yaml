@@ -1,4 +1,4 @@
-version: 1
+version: 2
 viewpoint_families:
   structure: Components, boundaries, dependencies, and placement.
   behavior: Ordered work and operational progression.
@@ -44,7 +44,7 @@ notation_profiles:
     supports: [flow]
     viewpoint_families: [behavior, decision]
     section_roles:
-      nodes: [start, process, decision, merge, end, control]
+      nodes: [start, process, decision, merge, end, control, data-object]
       groups: [phase, control-plane]
     visual_shapes:
       start: [terminal]
@@ -53,6 +53,7 @@ notation_profiles:
       merge: [diamond, circle]
       end: [terminal]
       control: [rect]
+      data-object: [note]
       phase: [container]
       control-plane: [container]
     layout_requirements:
@@ -78,18 +79,24 @@ notation_profiles:
     viewpoint_families: [interaction]
     section_roles:
       participants: [participant]
+      fragments: [phase, alt, opt, loop, ref]
     visual_shapes:
       participant: [lifeline]
+      phase: [container]
+      alt: [container]
+      opt: [container]
+      loop: [container]
+      ref: [container]
   state-machine:
     supports: [state]
     viewpoint_families: [state]
     section_roles:
       states: [initial, state, final]
     visual_shapes:
-      initial: [circle]
+      initial: [initial-marker]
       state: [rect, circle]
-      final: [circle]
-    required_roles: [initial]
+      final: [final-marker]
+    required_roles: [initial, final]
   er-schema:
     supports: [er]
     viewpoint_families: [data]

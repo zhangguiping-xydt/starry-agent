@@ -21,6 +21,7 @@ _SEMANTIC_COLLECTION_KINDS = {
     "lanes": "lane",
     "participants": "participant",
     "messages": "message",
+    "fragments": "fragment",
     "entities": "entity",
     "relationships": "relationship",
     "states": "state",

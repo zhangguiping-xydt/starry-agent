@@ -29,6 +29,13 @@ nodes:
 
 Read `../templates/notations/technical_notations.yaml` for the allowed roles, layout-specific requirements, and visual shapes. Do not invent a role outside the selected notation profile.
 
+Contract v4 also enforces type-native semantic grammar:
+
+- Flow: `decision` has at least two outgoing branches; `merge` has at least two incoming branches; `data-object` stays in a side region and connects through `kind: data` on the control rail.
+- State: exactly one unlabeled `initial` pseudo-state and at least one unlabeled `final` pseudo-state; initial has one outgoing transition and no incoming transition; final has no outgoing transition.
+- Sequence: message orders are contiguous; `kind: call` and `kind: return` remain distinct; high-density scenarios partition all messages into contiguous `phase` fragments. `alt`, `opt`, `loop`, and `ref` remain available for source-grounded control semantics and do not replace density phases.
+- Loop mechanism: the secondary relation set includes a real backward feedback relation rather than a decorative enclosing curve.
+
 ## SVG metadata and geometry
 
 Every locked notation role must appear on the corresponding semantic SVG group:
@@ -42,6 +49,8 @@ Every locked notation role must appear on the corresponding semantic SVG group:
 ```
 
 `stamp_visual_metadata.py` copies locked notation roles but does not prove the geometry. `validate_visual_svg.py` independently inspects the SVG descendants. Metadata cannot make a rectangle pass as a decision diamond, a header-only participant pass as a sequence lifeline, or a plain rectangle pass as a datastore.
+
+Likewise, a folded-note data object cannot substitute for an action, a single labeled circle cannot substitute for a UML final marker, and a solid response line cannot satisfy `kind: return`.
 
 ## Compatibility
 

@@ -34,6 +34,8 @@ Apply density as an execution rule:
 - `balanced`: use the style's locked gaps and keep primary and secondary information visibly distinct.
 - `dense`: use only for a detail or standalone view whose item count remains within budget; preserve every typography role and gap floor. `dense` is invalid for an overview.
 
+Some patterns also define `readability_limits`, which are softer than the hard section budget but still executable. Exceeding a sequence diagram's participant/message soft limit requires contiguous `phase` fragments that partition the message stream. Preserve source-grounded `alt|opt|loop|ref` fragments for control semantics, but do not treat them as a substitute for density partitioning. If phases cannot stay within budget, split the scenario; a taller canvas is not mitigation.
+
 `view_role: overview` prioritizes topology and major boundaries; move operational labels or exception detail to companion views. `view_role: detail` may carry more annotations but cannot shrink typography or bypass complexity limits.
 
 `primary_items` establishes visual hierarchy; it does not add or reorder semantics. Every edge-like semantic id must appear exactly once in `edge_roles.primary`, `edge_roles.secondary`, or `edge_roles.control`. Region members must reference existing non-edge semantic ids and may appear in at most one region.

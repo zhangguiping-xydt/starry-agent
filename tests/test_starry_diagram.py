@@ -289,6 +289,8 @@ def _write_preview_review(diagram_dir: Path) -> None:
             "edge_label_ownership": "passed",
             "emphasis_matches_view_role": "passed",
             "technical_notation_fidelity": "passed",
+            "semantic_roles_readable": "passed",
+            "density_and_whitespace": "passed",
             "no_slide_chrome": "passed",
         },
         "findings": [],
@@ -720,6 +722,211 @@ def test_v3_branching_flow_requires_decision_role() -> None:
     assert any("requires at least one role" in error for error in report["errors"])
 
     lock["nodes"][0]["notation_role"] = "decision"
+    assert validate_lock(lock)["status"] == "passed"
+
+
+def _v4_flow_lock_with_data_object() -> dict[str, object]:
+    lock = _base_lock("flow", "mermaid", "medium")
+    lock.update(
+        {
+            "contract_version": 4,
+            "viewpoint_family": "decision",
+            "reading_question": "How does validation converge while preserving its data contract?",
+            "notation_profile": "activity-flow",
+            "pack_identity": _pack_identity(),
+            "diagram_treatment": {
+                "renderer_family": "flow",
+                "composition_rhythm": "explanatory",
+                "emphasis": "Decision convergence and the storage contract sidecar.",
+                "boundary_style": "Type-native terminals, actions, merge, and data object.",
+                "connector_style": "Straight happy path with a separate data-association rail.",
+            },
+        }
+    )
+    lock["style_tokens"]["strokes"] = dict(lock["pack_identity"]["stroke_language"])
+    lock["nodes"] = [
+        {"id": "start", "label": "Start", "notation_role": "start"},
+        {"id": "check", "label": "Allowed?", "notation_role": "decision"},
+        {"id": "yes", "label": "Validate", "notation_role": "process"},
+        {"id": "no", "label": "Clear", "notation_role": "process"},
+        {"id": "merge", "label": "Converge", "notation_role": "merge"},
+        {"id": "finish", "label": "Persist", "notation_role": "end"},
+        {
+            "id": "schema",
+            "label": "city_code VARCHAR(64)",
+            "notation_role": "data-object",
+        },
+    ]
+    lock["edges"] = [
+        {"id": "start-check", "from": "start", "to": "check", "label": "next"},
+        {"id": "check-yes", "from": "check", "to": "yes", "label": "yes"},
+        {"id": "check-no", "from": "check", "to": "no", "label": "no"},
+        {"id": "yes-merge", "from": "yes", "to": "merge", "label": "valid"},
+        {"id": "no-merge", "from": "no", "to": "merge", "label": "normalized"},
+        {"id": "merge-finish", "from": "merge", "to": "finish", "label": "persist"},
+        {
+            "id": "schema-finish",
+            "from": "schema",
+            "to": "finish",
+            "label": "capacity",
+            "kind": "data",
+        },
+    ]
+    lock["layout_plan"] = _layout_plan(
+        "branching-flow",
+        "left-to-right",
+        ["start", "check", "yes", "merge", "finish"],
+        ["start-check", "check-yes", "yes-merge", "merge-finish"],
+        secondary_edges=["check-no", "no-merge"],
+        control_edges=["schema-finish"],
+        regions=[
+            {"id": "exceptions", "placement": "bottom", "members": ["no"]},
+            {"id": "contracts", "placement": "top", "members": ["schema"]},
+        ],
+    )
+    return lock
+
+
+def test_v4_flow_keeps_data_objects_off_the_primary_process_path() -> None:
+    lock = _v4_flow_lock_with_data_object()
+    assert validate_lock(lock)["status"] == "passed"
+
+    lock["layout_plan"]["regions"][1]["members"] = []
+    lock["layout_plan"]["primary_items"].append("schema")
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("FLOW_DATA_OBJECT_ON_PRIMARY_PATH" in error for error in report["errors"])
+
+
+def test_v4_state_requires_standard_unlabeled_pseudostates() -> None:
+    lock = _base_lock("state", "mermaid", "light")
+    lock.update(
+        {
+            "contract_version": 4,
+            "viewpoint_family": "state",
+            "reading_question": "Which lifecycle transitions lead to acceptance?",
+            "notation_profile": "state-machine",
+            "pack_identity": _pack_identity(),
+            "diagram_treatment": {
+                "renderer_family": "state",
+                "composition_rhythm": "focal",
+                "emphasis": "Lifecycle progression and terminal acceptance.",
+                "boundary_style": "Standard UML pseudo-states and named states.",
+                "connector_style": "Guarded lifecycle transitions.",
+            },
+        }
+    )
+    lock["style_tokens"]["strokes"] = dict(lock["pack_identity"]["stroke_language"])
+    lock["states"] = [
+        {"id": "initial", "notation_role": "initial"},
+        {"id": "pending", "label": "Pending", "notation_role": "state"},
+        {"id": "final", "notation_role": "final"},
+    ]
+    lock["transitions"] = [
+        {"id": "begin", "from": "initial", "to": "pending", "label": "submit"},
+        {"id": "accept", "from": "pending", "to": "final", "label": "approve"},
+    ]
+    lock["layout_plan"] = _layout_plan(
+        "state-transition",
+        "left-to-right",
+        ["initial", "pending", "final"],
+        ["begin", "accept"],
+    )
+    assert validate_lock(lock)["status"] == "passed"
+
+    lock["states"][0]["label"] = "Start"
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("STATE_PSEUDOSTATE_LABEL" in error for error in report["errors"])
+
+
+def test_legacy_state_still_requires_labels_on_every_state() -> None:
+    lock = _base_lock("state", "mermaid", "light")
+    lock["states"] = [
+        {"id": "start", "label": "Start", "initial": True},
+        {"id": "done", "label": "Done"},
+    ]
+    lock["transitions"] = [
+        {"id": "finish", "from": "start", "to": "done", "label": "complete"},
+    ]
+    lock["layout_plan"] = _layout_plan(
+        "state-transition",
+        "left-to-right",
+        ["start", "done"],
+        ["finish"],
+    )
+    assert validate_lock(lock)["status"] == "passed"
+
+    del lock["states"][1]["label"]
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("states done must have a label" in error for error in report["errors"])
+
+
+def _v4_dense_sequence_lock() -> dict[str, object]:
+    lock = _base_lock("sequence", "plantuml", "light")
+    lock.update(
+        {
+            "contract_version": 4,
+            "viewpoint_family": "interaction",
+            "reading_question": "How do participants exchange messages across two phases?",
+            "notation_profile": "sequence-interaction",
+            "pack_identity": _pack_identity(),
+            "diagram_treatment": {
+                "renderer_family": "sequence",
+                "composition_rhythm": "dense",
+                "emphasis": "Two ordered interaction phases.",
+                "boundary_style": "Unboxed participants with phase fragments.",
+                "connector_style": "Solid calls and dashed returns.",
+            },
+        }
+    )
+    lock["style_tokens"]["strokes"] = dict(lock["pack_identity"]["stroke_language"])
+    lock["participants"] = [
+        {"id": f"p{index}", "label": f"P{index}", "notation_role": "participant"}
+        for index in range(8)
+    ]
+    lock["messages"] = [
+        {
+            "id": f"m{index:02d}",
+            "from": f"p{index % 7}",
+            "to": f"p{(index % 7) + 1}",
+            "label": f"message {index}",
+            "kind": "call",
+            "order": index,
+        }
+        for index in range(1, 20)
+    ]
+    message_ids = [message["id"] for message in lock["messages"]]
+    lock["layout_plan"] = _layout_plan(
+        "sequence-lifelines",
+        "top-to-bottom",
+        [participant["id"] for participant in lock["participants"]],
+        message_ids,
+    )
+    return lock
+
+
+def test_v4_dense_sequence_requires_contiguous_phase_fragments() -> None:
+    lock = _v4_dense_sequence_lock()
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("SEQUENCE_DENSITY_UNMITIGATED" in error for error in report["errors"])
+
+    lock["fragments"] = [
+        {
+            "id": "phase-a",
+            "label": "Phase A",
+            "notation_role": "phase",
+            "members": [f"m{index:02d}" for index in range(1, 11)],
+        },
+        {
+            "id": "phase-b",
+            "label": "Phase B",
+            "notation_role": "phase",
+            "members": [f"m{index:02d}" for index in range(11, 20)],
+        },
+    ]
     assert validate_lock(lock)["status"] == "passed"
 
 

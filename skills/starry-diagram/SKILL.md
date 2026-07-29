@@ -11,7 +11,7 @@ Create trustworthy diagram packs from source material. The semantic source is tr
 
 ## Mandatory Pipeline
 
-Source intake → Diagram Strategist → type/viewpoint/layout/notation selection and complexity/diversity gate → pack identity and per-diagram treatment lock → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → Semantic quality gate → type-native Visual track → notation/identity/geometry/legibility quality gate → target-size preview → technical visual review and revision loop → optional high-density raster delivery → `embed.md` and reports.
+Source intake → Diagram Strategist → type/viewpoint/layout/notation selection and complexity/diversity gate → pack identity and per-diagram treatment lock → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → type-native semantic grammar and density gate → type-native Visual track → notation/identity/geometry/legibility quality gate → target-size preview → technical visual review and revision loop → optional high-density raster delivery → `embed.md` and reports.
 
 Execute every gate with the bundled scripts. A written claim that a gate passed is not sufficient.
 
@@ -54,6 +54,8 @@ Treat typography as geometry. Keep each role size stable. When text does not fit
 Build and validate the source representation first, then render semantic output, and only then enhance presentation. The semantic track owns nodes, edges, labels, participants, entities, states, messages, cardinalities, and required grouping.
 
 Give every semantic item a stable identity and every notation-covered item a source-grounded `notation_role`. Use `id="<lock-id>"` in Graphviz/SVG. In Mermaid and PlantUML, add a renderer-safe comment marker `diagram-id:<lock-id>` for every locked item. Run `python scripts/validate_semantic_source.py <diagram_lock.yaml> <source.*>` before rendering.
+
+Treat semantic roles as executable grammar, not labels. In activity flows, keep data contracts and data objects off the primary process path and connect them through `kind: data` control-sidecar associations. Decisions require real alternative branches and merges require real convergence. In state machines, initial/final pseudo-states are unlabeled standard markers; put submit/accept meaning on transitions or named states. In high-density sequence diagrams, partition the message stream with contiguous `phase` fragments; use `alt|opt|loop|ref` only for source-grounded control semantics. Classify replies as `kind: return` so visual validation can require dashed return connectors.
 
 ## Visual track rule
 
@@ -117,6 +119,10 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Naming the same node differently across diagrams, such as `Auth Service` in one diagram and `Authentication API` in another without a glossary mapping; use one canonical label/id from the pack glossary.
 - Treating `visual.svg` as a place to add unstated relationships.
 - Treating a technical diagram as a slide or infographic.
+- Treating a schema, field capacity, file, payload, or other data object as an executable process step.
+- Drawing labeled circles as state-machine initial/final pseudo-states or omitting a final marker.
+- Keeping a high-density sequence diagram ungrouped after it exceeds the participant/message readability budget.
+- Marking response messages as calls or rendering calls and returns with the same connector grammar.
 - Selecting a layout after SVG generation instead of before the lock.
 - Keeping an over-budget diagram on one canvas by shrinking text or expanding the canvas.
 - Judging readability from the SVG source size instead of the locked delivery viewport.

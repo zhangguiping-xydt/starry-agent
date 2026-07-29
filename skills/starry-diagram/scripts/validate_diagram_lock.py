@@ -18,6 +18,7 @@ try:
         load_profiles,
         profile_for,
     )
+    from semantic_quality import validate_semantic_quality
     from visual_identity import validate_diagram_treatment, validate_pack_identity
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
@@ -33,6 +34,7 @@ except ModuleNotFoundError:
         load_profiles,
         profile_for,
     )
+    from semantic_quality import validate_semantic_quality
     from visual_identity import validate_diagram_treatment, validate_pack_identity
 
 
@@ -48,9 +50,9 @@ _REQUIRED_TOP_LEVEL_KEYS = (
     "style_tokens",
 )
 _V4_REQUIRED_TOP_LEVEL_KEYS = ("pack_identity", "diagram_treatment")
-_EDGE_KINDS = {"command", "event", "data", "projection", "call"}
+_EDGE_KINDS = {"command", "event", "data", "projection", "call", "return", "async"}
 _EDGE_LIKE_SEMANTIC_KINDS = {"edge", "message", "relationship", "transition"}
-_CONTAINER_SEMANTIC_KINDS = {"group", "lane"}
+_CONTAINER_SEMANTIC_KINDS = {"group", "lane", "fragment"}
 _DENSITIES = {"sparse", "balanced", "dense"}
 _VIEW_ROLES = {"standalone", "overview", "detail"}
 _REGION_PLACEMENTS = {"top", "bottom", "left", "right", "center", "background", "lanes"}
@@ -572,7 +574,9 @@ def _validate_type_semantics(
 ) -> None:
     if diagram_type == "sequence":
         participants = _validate_named_items(lock, "participants", errors)
-        _validate_relations(lock, "messages", participants, errors)
+        message_ids = _validate_relations(lock, "messages", participants, errors)
+        if "fragments" in lock:
+            _validate_groups(lock, "fragments", message_ids, errors)
         messages = lock.get("messages", [])
         if isinstance(messages, list):
             orders = [message.get("order") for message in messages if isinstance(message, Mapping)]
@@ -609,10 +613,21 @@ def _validate_type_semantics(
         return
 
     if diagram_type == "state":
-        states = _validate_named_items(lock, "states", errors)
+        version = contract_version(lock)
+        states = _validate_named_items(
+            lock,
+            "states",
+            errors,
+            require_label=version < 4,
+        )
         _validate_relations(lock, "transitions", states, errors)
         if not any(
-            isinstance(state, Mapping) and state.get("initial") is True
+            isinstance(state, Mapping)
+            and (
+                state.get("notation_role") == "initial"
+                or version < 4
+                and state.get("initial") is True
+            )
             for state in lock.get("states", [])
         ):
             warnings.append("state diagram has no initial state")
@@ -719,6 +734,17 @@ def validate_lock(
     )
     errors.extend(notation_errors)
     warnings.extend(notation_warnings)
+    layout = layout_for(
+        lock.get("layout_plan", {}).get("pattern")
+        if isinstance(lock.get("layout_plan"), Mapping)
+        else None,
+        layouts_data,
+    )
+    semantic_quality_report, semantic_quality_errors, semantic_quality_warnings = (
+        validate_semantic_quality(lock, layout=layout)
+    )
+    errors.extend(semantic_quality_errors)
+    warnings.extend(semantic_quality_warnings)
 
     semantic_id_counts = Counter(item["id"] for item in semantic_items(lock))
     duplicate_semantic_ids = sorted(
@@ -732,6 +758,7 @@ def validate_lock(
         "errors": errors,
         "warnings": warnings,
         "notation": notation_report,
+        "semantic_quality": semantic_quality_report,
         "pack_identity": identity_report,
         "diagram_treatment": treatment_report,
     }

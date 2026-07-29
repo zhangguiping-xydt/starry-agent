@@ -21,7 +21,8 @@ The output is a technical diagram. Read `../templates/notations/technical_notati
 - Using colors, fonts, icons, or effects outside `style_tokens` unless the lock is updated by the strategist first.
 - Shrinking one label, clipping text, or changing `delivery_target` to avoid a legibility failure.
 - Moving an activity outside its lane, a component outside its boundary, or a message outside its locked order.
-- Replacing a decision, datastore, state marker, boundary, lane, or lifeline with a generic card.
+- Replacing a decision, data object, datastore, state marker, boundary, lane, fragment, or lifeline with a generic card.
+- Rendering a return message as a solid call connector or putting text inside an initial/final state pseudo-marker.
 - Sending architecture, flow, state, sequence, ER, deployment, or event diagrams through one generic `svg_node()` or card renderer.
 
 ## Enhancement levels
@@ -51,7 +52,7 @@ Treat typography as geometry. Measure or conservatively estimate text first, all
 
 ## Semantic metadata
 
-Wrap every semantic visual item in a group with `data-diagram-id` and `data-diagram-kind`. Notation-covered items carry `data-notation-role`; edge-like items also carry `data-from` and `data-to`. Groups and lanes carry `data-members="id-a,id-b"`. These attributes make semantic equivalence machine-verifiable and do not affect rendering. The validator still inspects actual SVG geometry, so metadata cannot substitute for a diamond, lifeline, boundary, datastore, or terminal shape.
+Wrap every semantic visual item in a group with `data-diagram-id` and `data-diagram-kind`. Notation-covered items carry `data-notation-role`; edge-like items also carry `data-from` and `data-to`. Groups, lanes, and sequence fragments carry `data-members="id-a,id-b"`. These attributes make semantic equivalence machine-verifiable and do not affect rendering. The validator still inspects actual SVG geometry, so metadata cannot substitute for a diamond, lifeline, boundary, datastore, or terminal shape.
 
 When the renderer already preserves lock ids, stamp the remaining metadata deterministically:
 

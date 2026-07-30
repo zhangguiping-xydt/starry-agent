@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible problem in starry-agent or repo-to-skill.
+description: Report a reproducible problem in repo-to-skill.
 title: "bug: "
 labels: [bug]
 body:

@@ -46,19 +46,21 @@ FORBIDDEN_TEXT = [
 ]
 
 
-def test_published_skill_catalog_includes_starry_diagram() -> None:
-    skill_path = REPO_ROOT / "skills" / "starry-diagram" / "SKILL.md"
-    gitmodules = (REPO_ROOT / ".gitmodules").read_text(encoding="utf-8")
+def test_repository_is_focused_on_repo_to_skill() -> None:
+    skill_path = REPO_ROOT / "skills" / "repo-to-skill" / "SKILL.md"
+    published_skills = sorted(
+        path.parent.name for path in (REPO_ROOT / "skills").glob("*/SKILL.md")
+    )
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     readme_zh = (REPO_ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
 
     assert skill_path.is_file()
     skill_text = skill_path.read_text(encoding="utf-8")
-    assert "name: starry-diagram" in skill_text
-    repository_url = "https://github.com/zhangguiping-xydt/starry-diagram"
-    assert f"{repository_url}.git" in gitmodules
-    assert repository_url in readme
-    assert repository_url in readme_zh
+    assert "name: repo-to-skill" in skill_text
+    assert published_skills == ["repo-to-skill"]
+    assert not (REPO_ROOT / ".gitmodules").exists()
+    assert readme.startswith("# repo-to-skill\n")
+    assert readme_zh.startswith("# repo-to-skill\n")
 
 
 def test_public_docs_exist_and_state_required_boundaries() -> None:

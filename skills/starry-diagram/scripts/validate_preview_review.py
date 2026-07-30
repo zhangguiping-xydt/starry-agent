@@ -33,6 +33,7 @@ V5_REQUIRED_CHECKS = REQUIRED_CHECKS + (
     "edge_route_economy",
     "edge_routing_rhythm",
 )
+V6_REQUIRED_CHECKS = V5_REQUIRED_CHECKS + ("edge_routing_composition",)
 
 
 def preview_sha256(path: Path) -> str:
@@ -92,7 +93,13 @@ def validate_preview_review(
         effective_version = expected_contract_version
 
     checks = review.get("checks")
-    required_checks = V5_REQUIRED_CHECKS if effective_version >= 5 else REQUIRED_CHECKS
+    required_checks = (
+        V6_REQUIRED_CHECKS
+        if effective_version >= 6
+        else V5_REQUIRED_CHECKS
+        if effective_version >= 5
+        else REQUIRED_CHECKS
+    )
     check_results: dict[str, Any] = {}
     if not isinstance(checks, Mapping):
         errors.append("preview review checks must be a mapping")

@@ -16,6 +16,14 @@ _GEOMETRY_TAGS = {"rect", "circle", "ellipse", "polygon", "path"}
 _EPSILON = 1e-6
 _ROUTE_ROLES = ("primary", "secondary", "control")
 _BRANCH_NOTATION_ROLES = {"decision", "merge"}
+_COMPOSITION_DIRECT_EXEMPT_PATTERNS = {
+    "spine",
+    "bus",
+    "rail",
+    "port",
+    "orbit",
+    "feedback",
+}
 
 Point = tuple[float, float]
 Segment = tuple[Point, Point]
@@ -445,6 +453,7 @@ def _route_economy(
     primary_items: Any = None,
     allow_backward_detours: bool = False,
     routing_family: str = "axis",
+    route_patterns: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     if not isinstance(policy, Mapping) or policy.get("direct_when_clear") is not True:
         return {"checked": False}, []
@@ -503,6 +512,11 @@ def _route_economy(
         role = roles.get(edge_id, "secondary")
         source = edge.get("from")
         target = edge.get("to")
+        route_pattern = (
+            route_patterns.get(edge_id, "")
+            if isinstance(route_patterns, Mapping)
+            else ""
+        )
         backward = (
             allow_backward_detours
             and isinstance(source, str)
@@ -511,7 +525,12 @@ def _route_economy(
             and target in primary_order
             and primary_order[target] <= primary_order[source]
         )
-        exempt_from_direct = role == "control" or source == target or backward
+        exempt_from_direct = (
+            role == "control"
+            or source == target
+            or backward
+            or route_pattern in _COMPOSITION_DIRECT_EXEMPT_PATTERNS
+        )
         direct_clear = not blockers and direct_length > _EPSILON
         delta_x = abs(end[0] - start[0])
         delta_y = abs(end[1] - start[1])
@@ -599,6 +618,7 @@ def _route_economy(
             "direct_blockers": blockers,
             "axis_aligned": axis_aligned,
             "routing_family": routing_family,
+            "planned_route_pattern": route_pattern,
             "source_notation_role": source_role,
             "target_notation_role": target_role,
             "diagonal_allowed": diagonal_allowed,
@@ -617,6 +637,235 @@ def _route_economy(
     }, errors
 
 
+def _axis_segment_coordinates(
+    edge: Mapping[str, Any], orientation: str
+) -> list[float]:
+    coordinates: list[float] = []
+    for start, end in _simplify_segments(edge.get("segments", [])):
+        if orientation == "horizontal" and abs(end[1] - start[1]) <= _EPSILON:
+            coordinates.append((start[1] + end[1]) / 2)
+        elif orientation == "vertical" and abs(end[0] - start[0]) <= _EPSILON:
+            coordinates.append((start[0] + end[0]) / 2)
+    return coordinates
+
+
+def _shared_corridor(
+    grouped_edges: list[Mapping[str, Any]], orientation: str, tolerance: float
+) -> float | None:
+    if orientation not in {"horizontal", "vertical"} or len(grouped_edges) < 2:
+        return None
+    coordinate_sets = [
+        _axis_segment_coordinates(edge, orientation) for edge in grouped_edges
+    ]
+    if any(not values for values in coordinate_sets):
+        return None
+    for candidate in coordinate_sets[0]:
+        if all(
+            any(abs(value - candidate) <= tolerance for value in values)
+            for values in coordinate_sets[1:]
+        ):
+            return candidate
+    return None
+
+
+def _shared_port_coordinate(
+    grouped_edges: list[Mapping[str, Any]], orientation: str, tolerance: float
+) -> float | None:
+    if orientation not in {"horizontal", "vertical"} or len(grouped_edges) < 2:
+        return None
+    coordinate_index = 0 if orientation == "horizontal" else 1
+    endpoint_sets: list[list[float]] = []
+    for edge in grouped_edges:
+        simplified = _simplify_segments(edge.get("segments", []))
+        if not simplified:
+            return None
+        endpoint_sets.append(
+            [
+                simplified[0][0][coordinate_index],
+                simplified[-1][1][coordinate_index],
+            ]
+        )
+    for candidate in endpoint_sets[0]:
+        if all(
+            any(abs(value - candidate) <= tolerance for value in values)
+            for values in endpoint_sets[1:]
+        ):
+            return candidate
+    return None
+
+
+def _route_composition(
+    edges: Mapping[str, dict[str, Any]],
+    routing_plan: Any,
+    policy: Any,
+) -> tuple[dict[str, Any], list[str]]:
+    if not isinstance(routing_plan, Mapping) or not isinstance(policy, Mapping):
+        return {"checked": False}, []
+
+    tolerance_value = policy.get("corridor_tolerance_px", 0)
+    tolerance = (
+        float(tolerance_value)
+        if isinstance(tolerance_value, int | float)
+        and not isinstance(tolerance_value, bool)
+        else 0.0
+    )
+    orbit_ratio_value = policy.get("min_orbit_detour_ratio", 1.0)
+    minimum_orbit_ratio = (
+        float(orbit_ratio_value)
+        if isinstance(orbit_ratio_value, int | float)
+        and not isinstance(orbit_ratio_value, bool)
+        else 1.0
+    )
+
+    groups = routing_plan.get("groups")
+    if not isinstance(groups, list):
+        return {"checked": False}, []
+
+    group_reports: list[dict[str, Any]] = []
+    violations: list[dict[str, Any]] = []
+    errors: list[str] = []
+    corridor_patterns = {"axis", "spine", "bus", "rail", "lifecycle"}
+    for group in groups:
+        if not isinstance(group, Mapping):
+            continue
+        group_id = group.get("id")
+        pattern = group.get("pattern")
+        orientation = group.get("orientation")
+        edge_ids = [
+            edge_id
+            for edge_id in group.get("edges", [])
+            if isinstance(edge_id, str) and edge_id in edges
+        ]
+        grouped_edges = [edges[edge_id] for edge_id in edge_ids]
+        group_errors: list[str] = []
+
+        for edge_id, edge in zip(edge_ids, grouped_edges):
+            if edge.get("route_group") != group_id or edge.get("route_pattern") != pattern:
+                group_errors.append("metadata")
+                errors.append(
+                    f"ROUTING_METADATA_MISMATCH: edge {edge_id} must declare "
+                    f'data-route-group="{group_id}" and data-route-pattern="{pattern}"'
+                )
+            mode = edge.get("route_mode", "unknown")
+            if pattern in {"direct", "message"} and mode != "straight":
+                group_errors.append("route-mode")
+                errors.append(
+                    f"ROUTING_PATTERN_MISMATCH: edge {edge_id} is planned as {pattern} "
+                    f"but renders as {mode}"
+                )
+            if (
+                pattern == "feedback"
+                and edge.get("from") != edge.get("to")
+                and mode == "straight"
+            ):
+                group_errors.append("feedback-route")
+                errors.append(
+                    f"FEEDBACK_ROUTE_NEEDS_OUTER_PATH: edge {edge_id} is a non-local "
+                    "feedback route but renders as a straight chord"
+                )
+
+        shared_coordinate: float | None = None
+        shared_orientation: str | None = None
+        if (
+            pattern in corridor_patterns
+            and len(grouped_edges) >= 2
+            and isinstance(orientation, str)
+            and orientation in {"horizontal", "vertical", "perimeter"}
+        ):
+            candidate_orientations = (
+                ["horizontal", "vertical"]
+                if orientation == "perimeter"
+                else [orientation]
+            )
+            for candidate_orientation in candidate_orientations:
+                shared_coordinate = _shared_corridor(
+                    grouped_edges, candidate_orientation, tolerance
+                )
+                if shared_coordinate is not None:
+                    shared_orientation = candidate_orientation
+                    break
+            if shared_coordinate is None:
+                group_errors.append("shared-corridor")
+                errors.append(
+                    f"ROUTING_GROUP_HAS_NO_SHARED_CORRIDOR: group {group_id} plans "
+                    f"{len(grouped_edges)} {pattern} edges on a {orientation} corridor, "
+                    "but their SVG geometry does not share that axis"
+                )
+        elif (
+            pattern == "port"
+            and len(grouped_edges) >= 2
+            and isinstance(orientation, str)
+        ):
+            shared_coordinate = _shared_port_coordinate(
+                grouped_edges, orientation, tolerance
+            )
+            shared_orientation = orientation if shared_coordinate is not None else None
+            if shared_coordinate is None:
+                group_errors.append("shared-port")
+                errors.append(
+                    f"ROUTING_GROUP_HAS_NO_SHARED_PORT: group {group_id} plans "
+                    f"{len(grouped_edges)} edges through one {orientation} boundary port, "
+                    "but their SVG endpoints do not share that boundary coordinate"
+                )
+
+        orbit_ratios: list[float] = []
+        if pattern == "orbit":
+            for edge_id, edge in zip(edge_ids, grouped_edges):
+                simplified = _simplify_segments(edge.get("segments", []))
+                if not simplified:
+                    continue
+                start = simplified[0][0]
+                end = simplified[-1][1]
+                direct_length = math.hypot(end[0] - start[0], end[1] - start[1])
+                ratio = (
+                    _length(edge.get("segments", [])) / direct_length
+                    if direct_length > _EPSILON
+                    else 1.0
+                )
+                orbit_ratios.append(ratio)
+                if edge.get("route_mode") != "curved":
+                    group_errors.append("orbit-mode")
+                    errors.append(
+                        f"LOOP_ORBIT_USES_CHORD: edge {edge_id} belongs to an orbit "
+                        "but is not rendered as a curved perimeter route"
+                    )
+            average_ratio = (
+                sum(orbit_ratios) / len(orbit_ratios) if orbit_ratios else 1.0
+            )
+            if average_ratio < minimum_orbit_ratio:
+                group_errors.append("orbit-curvature")
+                errors.append(
+                    f"LOOP_ORBIT_TOO_SHALLOW: group {group_id} averages "
+                    f"{average_ratio:.3f}x chord length; minimum is "
+                    f"{minimum_orbit_ratio:.3f}x for a visible loop contour"
+                )
+
+        record = {
+            "id": group_id,
+            "pattern": pattern,
+            "orientation": orientation,
+            "edges": edge_ids,
+            "route_modes": [edge.get("route_mode") for edge in grouped_edges],
+            "shared_corridor_coordinate": (
+                round(shared_coordinate, 3) if shared_coordinate is not None else None
+            ),
+            "shared_corridor_orientation": shared_orientation,
+            "orbit_detour_ratios": [round(value, 3) for value in orbit_ratios],
+            "violations": sorted(set(group_errors)),
+        }
+        group_reports.append(record)
+        if group_errors:
+            violations.append(record)
+
+    return {
+        "checked": True,
+        "strategy": routing_plan.get("strategy"),
+        "policy": dict(policy),
+        "groups": group_reports,
+        "violations": violations,
+    }, errors
+
+
 def analyze_visual_geometry(
     root: Any,
     viewbox: tuple[float, float, float, float],
@@ -626,6 +875,8 @@ def analyze_visual_geometry(
     primary_items: Any = None,
     allow_backward_detours: bool = False,
     routing_family: str = "axis",
+    routing_plan: Any = None,
+    route_composition_policy: Any = None,
 ) -> tuple[dict[str, Any], list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -646,6 +897,8 @@ def analyze_visual_geometry(
                 "segments": segments,
                 "supported": supported,
                 "route_mode": _route_mode(element, segments),
+                "route_group": element.attrib.get("data-route-group"),
+                "route_pattern": element.attrib.get("data-route-pattern"),
             }
         elif kind in _NODE_KINDS:
             box = _semantic_element_bbox(element)
@@ -658,6 +911,19 @@ def analyze_visual_geometry(
         for item_id, edge in edges.items()
         if edge["supported"] and edge["segments"]
     }
+    route_patterns: dict[str, str] = {}
+    if isinstance(routing_plan, Mapping):
+        groups = routing_plan.get("groups", [])
+        if isinstance(groups, list):
+            for group in groups:
+                if not isinstance(group, Mapping):
+                    continue
+                pattern = group.get("pattern")
+                if not isinstance(pattern, str):
+                    continue
+                for edge_id in group.get("edges", []):
+                    if isinstance(edge_id, str):
+                        route_patterns[edge_id] = pattern
     edge_fraction = len(analyzed_edges) / len(edges) if edges else 1.0
     minimum_fraction = limits.get("min_analyzable_edge_fraction", 0.0)
     if isinstance(minimum_fraction, int | float) and edge_fraction < float(minimum_fraction):
@@ -730,8 +996,15 @@ def analyze_visual_geometry(
         primary_items=primary_items,
         allow_backward_detours=allow_backward_detours,
         routing_family=routing_family,
+        route_patterns=route_patterns,
     )
     errors.extend(route_errors)
+    route_composition, composition_errors = _route_composition(
+        analyzed_edges,
+        routing_plan,
+        route_composition_policy,
+    )
+    errors.extend(composition_errors)
 
     report = {
         "coverage": {
@@ -750,5 +1023,6 @@ def analyze_visual_geometry(
         "edge_node_intersections": node_intersections,
         "long_edges": long_edges,
         "route_economy": route_economy,
+        "route_composition": route_composition,
     }
     return report, errors, warnings

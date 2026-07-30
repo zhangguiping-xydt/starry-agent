@@ -29,6 +29,25 @@ def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) ->
     stamped: list[str] = []
     root_metadata: dict[str, str] = {}
     visual_tiers = _expected_visual_tiers(lock) if contract_version(lock) >= 5 else {}
+    route_metadata: dict[str, tuple[str, str]] = {}
+    if contract_version(lock) >= 6:
+        layout_plan = lock.get("layout_plan", {})
+        routing_plan = (
+            layout_plan.get("routing_plan")
+            if isinstance(layout_plan, Mapping)
+            else None
+        )
+        groups = routing_plan.get("groups", []) if isinstance(routing_plan, Mapping) else []
+        for group in groups:
+            if not isinstance(group, Mapping):
+                continue
+            group_id = group.get("id")
+            pattern = group.get("pattern")
+            if not isinstance(group_id, str) or not isinstance(pattern, str):
+                continue
+            for edge_id in group.get("edges", []):
+                if isinstance(edge_id, str):
+                    route_metadata[edge_id] = (group_id, pattern)
 
     if contract_version(lock) >= 4:
         identity = lock.get("pack_identity", {})
@@ -63,6 +82,10 @@ def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) ->
             element.set("data-notation-role", item["notation_role"])
         if item_id in visual_tiers:
             element.set("data-visual-tier", visual_tiers[item_id])
+        if item_id in route_metadata:
+            group_id, pattern = route_metadata[item_id]
+            element.set("data-route-group", group_id)
+            element.set("data-route-pattern", pattern)
         if item["kind"] in {"group", "lane"}:
             record = next(
                 (
@@ -85,6 +108,7 @@ def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) ->
         "output": str(output_path),
         "stamped": sorted(stamped),
         "root_metadata": root_metadata,
+        "route_metadata": sorted(route_metadata),
         "missing": sorted(missing),
     }
     if missing:

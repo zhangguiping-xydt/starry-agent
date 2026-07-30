@@ -1,4 +1,4 @@
-contract_version: 5
+contract_version: 6
 id: architecture-overview
 title: 架构总览
 type: architecture
@@ -70,6 +70,14 @@ layout_plan:
       - frontend-to-workflow
     secondary: []
     control: []
+  routing_plan:
+    strategy: layered-backbone
+    groups:
+      - id: primary-call
+        pattern: direct
+        orientation: horizontal
+        edges:
+          - frontend-to-workflow
 canvas:
   mode: fixed
   width: 1280

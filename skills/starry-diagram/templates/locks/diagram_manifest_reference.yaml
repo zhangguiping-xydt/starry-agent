@@ -1,4 +1,4 @@
-contract_version: 5
+contract_version: 6
 project: 示例项目
 mode: diagram-pack
 source_summary: 基于需求、PRD、技术设计和架构笔记提取的图谱候选。

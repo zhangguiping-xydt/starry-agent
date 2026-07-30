@@ -43,10 +43,10 @@ Read `layout_plan` and the selected entry in `templates/layouts/technical_layout
 1. Allocate regions, lanes, layers, boundaries, or rails before placing nodes.
 2. Place `primary_items` on the pattern's dominant reading axis.
 3. Place secondary region members without weakening the primary path.
-4. Route `edge_roles.primary`, then `secondary`, then `control`.
-5. Keep clear same-axis connectors straight. For off-axis endpoints, apply the layout's `routing_family`: minimal orthogonal routing for layers/boundaries, symmetric diagonals only at decision/merge branches, lifecycle-axis routing for states, and radial routing only where the layout declares it.
-6. Route verified backward feedback, loopbacks, obstacle avoidance, and control links on outer rails, shared buses, or explicit ports.
-7. Run the geometry-aware visual gate and revise until bend counts, detour ratios, diagonal policy, and visual routing rhythm pass in addition to crossings and node intrusions.
+4. Build the v6 `routing_plan` as a whole-diagram connector skeleton before emitting any individual path. Assign every edge to exactly one axis, spine, bus, rail, port, branch, handoff, message, lifecycle, spoke, orbit, feedback, or independent-direct group.
+5. Route `edge_roles.primary`, then `secondary`, then `control` inside the locked groups. Allow a shared corridor, boundary port, or orbit to outrank the local endpoint chord; do not use this exemption for arbitrary doglegs.
+6. Keep sequence messages and lifecycle axes direct, use symmetric diagonals only at decision/merge branches, make hub spokes radial, and render loop orbits as visible perimeter curves. Route verified backward feedback and controls on their locked outer rails or buses.
+7. Stamp `data-route-group` and `data-route-pattern` on every edge, then run the geometry-aware visual gate. Revise until route-group coverage, shared-corridor geometry, orbit curvature, independent-direct share, bend counts, total detour ratios, crossings, and node intrusions pass.
 
 Do not treat composition rhythm as metadata:
 

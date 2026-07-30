@@ -22,6 +22,17 @@ layout_plan:
     primary: [start-validate, validate-decide, decide-finish]
     secondary: [decide-retry, retry-validate]
     control: []
+  routing_plan:
+    strategy: branch-spine
+    groups:
+      - id: happy-path
+        pattern: axis
+        orientation: horizontal
+        edges: [start-validate, validate-decide, decide-finish]
+      - id: exception-branches
+        pattern: branch
+        orientation: mixed
+        edges: [decide-retry, retry-validate]
 ```
 
 Allowed density values are `sparse`, `balanced`, and `dense`. Allowed view roles are `standalone`, `overview`, and `detail`. Region placement is one of `top`, `bottom`, `left`, `right`, `center`, `background`, or `lanes`.
@@ -38,7 +49,9 @@ Some patterns also define `readability_limits`, which are softer than the hard s
 
 `view_role: overview` prioritizes topology and major boundaries; move operational labels or exception detail to companion views. `view_role: detail` may carry more annotations but cannot shrink typography or bypass complexity limits.
 
-`primary_items` establishes visual hierarchy; it does not add or reorder semantics. Every edge-like semantic id must appear exactly once in `edge_roles.primary`, `edge_roles.secondary`, or `edge_roles.control`. Region members must reference existing non-edge semantic ids and may appear in at most one region.
+`primary_items` establishes visual hierarchy; it does not add or reorder semantics. Every edge-like semantic id must appear exactly once in `edge_roles.primary`, `edge_roles.secondary`, or `edge_roles.control`, and exactly once in a v6 `routing_plan.groups[].edges` list. Region members must reference existing non-edge semantic ids and may appear in at most one region.
+
+`routing_plan.strategy` must match the selected layout catalog entry. A route group is an executable whole-diagram motif, not a descriptive tag: axis/spine/bus/lifecycle groups use a horizontal or vertical orientation and share that corridor in the SVG; rail groups use a shared horizontal, vertical, or perimeter corridor; port groups share a real boundary coordinate; branch groups touch a real decision or merge; message groups remain horizontal type-native sequence messages; spokes are radial; orbit groups use visible curved perimeter routes rather than shallow chords. Use `direct` only for genuinely independent relationships that do not belong to a stronger composition.
 
 ## Complexity gate
 
@@ -60,9 +73,9 @@ The validator rejects an unapproved exception and reports an approved exception 
 1. Allocate canvas regions, lanes, layers, boundaries, or rails required by the notation profile.
 2. Place `primary_items` on the dominant reading axis.
 3. Place region members and secondary items without disturbing the primary path.
-4. Route primary edges, then secondary edges, then control edges.
-5. Test endpoint alignment and the selected layout's `routing_family`. A clear same-axis connection stays straight; a clear off-axis connection may use the smallest type-native orthogonal route instead of a diagonal.
-6. Reserve symmetric diagonals for source-grounded decision/merge branches and radial/loop layouts. Put verified backward feedback, loopbacks, obstacle avoidance, and control connections on outer rails or shared buses.
-7. Run the geometry-aware visual gate and revise until crossings, node intrusions, unnecessary detours, routing-rhythm violations, long routes, and typography checks pass.
+4. Lock the whole-diagram `routing_plan`: choose the main axis/spine/orbit/message grid, then shared buses, rails, ports, branches, and feedback paths.
+5. Route primary edges, then secondary edges, then control edges inside those groups. Local straight-line distance does not override a locked shared corridor or orbit.
+6. Test endpoint alignment and the selected layout's `routing_family`. Keep lifecycle and sequence axes direct, reserve symmetric diagonals for source-grounded decision/merge branches, and route verified feedback or controls on their locked outer paths.
+7. Run the geometry-aware visual gate and revise until routing-group coverage, independent-direct ratio, shared-corridor geometry, orbit curvature, crossings, node intrusions, total detours, long routes, and typography checks pass.
 
 The catalog is a composition grammar, not a slide template. Do not add page chrome, decorative imagery, card grids, or shadows that do not improve technical reading.

@@ -117,6 +117,32 @@ def load_layouts(path: Path | None = None) -> dict[str, Any]:
             for value in values.values()
         ):
             raise ValueError(f"route_economy.{field} values must be non-negative numbers")
+    route_composition = data.get("route_composition")
+    if not isinstance(route_composition, Mapping):
+        raise ValueError("technical layouts must define route_composition")
+    for field in ("corridor_tolerance_px", "min_orbit_detour_ratio"):
+        value = route_composition.get(field)
+        if (
+            not isinstance(value, int | float)
+            or isinstance(value, bool)
+            or value < 0
+        ):
+            raise ValueError(f"route_composition.{field} must be non-negative")
+    route_patterns = {
+        "direct",
+        "axis",
+        "spine",
+        "bus",
+        "rail",
+        "port",
+        "branch",
+        "handoff",
+        "message",
+        "lifecycle",
+        "spoke",
+        "orbit",
+        "feedback",
+    }
     for name, value in patterns.items():
         if not isinstance(name, str) or not name or not isinstance(value, Mapping):
             raise ValueError("every technical layout must have a name and mapping body")
@@ -132,6 +158,62 @@ def load_layouts(path: Path | None = None) -> dict[str, Any]:
         }:
             raise ValueError(
                 f"technical layout {name} must define a supported routing_family"
+            )
+        routing_strategy = value.get("routing_strategy")
+        if not isinstance(routing_strategy, str) or not routing_strategy.strip():
+            raise ValueError(
+                f"technical layout {name} must define a routing_strategy"
+            )
+        allowed_route_patterns = value.get("allowed_route_patterns")
+        if (
+            not isinstance(allowed_route_patterns, list)
+            or not allowed_route_patterns
+            or not all(pattern in route_patterns for pattern in allowed_route_patterns)
+        ):
+            raise ValueError(
+                f"technical layout {name} must define supported allowed_route_patterns"
+            )
+        composition_gate = value.get("composition_gate")
+        if not isinstance(composition_gate, Mapping):
+            raise ValueError(
+                f"technical layout {name} must define composition_gate"
+            )
+        for field in ("min_edges", "min_group_edges"):
+            gate_value = composition_gate.get(field)
+            if (
+                not isinstance(gate_value, int)
+                or isinstance(gate_value, bool)
+                or gate_value < 1
+            ):
+                raise ValueError(
+                    f"technical layout {name} composition_gate.{field} "
+                    "must be a positive integer"
+                )
+        direct_ratio = composition_gate.get("max_independent_direct_ratio")
+        if (
+            not isinstance(direct_ratio, int | float)
+            or isinstance(direct_ratio, bool)
+            or not 0 <= direct_ratio <= 1
+        ):
+            raise ValueError(
+                f"technical layout {name} composition_gate."
+                "max_independent_direct_ratio must be between 0 and 1"
+            )
+        for field in ("required_patterns", "required_any"):
+            required = composition_gate.get(field, [])
+            if (
+                not isinstance(required, list)
+                or not all(pattern in allowed_route_patterns for pattern in required)
+            ):
+                raise ValueError(
+                    f"technical layout {name} composition_gate.{field} "
+                    "must use allowed route patterns"
+                )
+        if not composition_gate.get("required_patterns") and not composition_gate.get(
+            "required_any"
+        ):
+            raise ValueError(
+                f"technical layout {name} composition_gate must require a route pattern"
             )
         if not isinstance(value.get("summary"), str) or not value["summary"].strip():
             raise ValueError(f"technical layout {name} must define a summary")

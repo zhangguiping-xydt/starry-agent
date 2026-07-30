@@ -34,6 +34,7 @@ from validate_diagram_manifest import validate_manifest, validate_manifest_file 
 from validate_preview_review import (  # noqa: E402
     REQUIRED_CHECKS,
     V5_REQUIRED_CHECKS,
+    V6_REQUIRED_CHECKS,
     validate_preview_review,
 )
 from validate_semantic_source import validate_semantic_source  # noqa: E402
@@ -149,6 +150,23 @@ def _v5_architecture_lock() -> dict[str, object]:
             "differentiation_strategy": "Use architecture containment and component geometry.",
         }
     )
+    return lock
+
+
+def _v6_architecture_lock() -> dict[str, object]:
+    lock = _v5_architecture_lock()
+    lock["contract_version"] = 6
+    lock["layout_plan"]["routing_plan"] = {
+        "strategy": "layered-backbone",
+        "groups": [
+            {
+                "id": "primary-call",
+                "pattern": "direct",
+                "orientation": "horizontal",
+                "edges": ["a-to-b"],
+            }
+        ],
+    }
     return lock
 
 
@@ -447,8 +465,8 @@ def test_preview_review_template_matches_validator_contract() -> None:
             encoding="utf-8"
         )
     )
-    assert template["contract_version"] == 5
-    assert tuple(template["checks"]) == V5_REQUIRED_CHECKS
+    assert template["contract_version"] == 6
+    assert tuple(template["checks"]) == V6_REQUIRED_CHECKS
 
 
 def test_reference_typography_meets_reference_delivery_target() -> None:
@@ -636,6 +654,67 @@ def test_lock_requires_complete_layout_plan() -> None:
     report = validate_lock(lock)
     assert report["status"] == "failed"
     assert any("layout_plan" in error for error in report["errors"])
+
+
+def test_v6_lock_requires_whole_diagram_routing_composition() -> None:
+    lock = _v6_architecture_lock()
+    node_ids = [f"node-{letter}" for letter in "abcde"]
+    lock["nodes"] = [
+        {
+            "id": node_id,
+            "label": node_id,
+            "required": True,
+            "notation_role": "external-system" if index == 0 else "service",
+        }
+        for index, node_id in enumerate(node_ids)
+    ]
+    edge_ids = [f"edge-{index}" for index in range(4)]
+    lock["edges"] = [
+        {
+            "id": edge_id,
+            "from": node_ids[index],
+            "to": node_ids[index + 1],
+            "label": edge_id,
+            "kind": "call",
+            "required": True,
+        }
+        for index, edge_id in enumerate(edge_ids)
+    ]
+    lock["groups"][0]["members"] = node_ids
+    lock["layout_plan"] = _layout_plan(
+        "layered-system", "left-to-right", node_ids, edge_ids
+    )
+    lock["layout_plan"]["routing_plan"] = {
+        "strategy": "layered-backbone",
+        "groups": [
+            {
+                "id": f"direct-{index}",
+                "pattern": "direct",
+                "orientation": "horizontal",
+                "edges": [edge_id],
+            }
+            for index, edge_id in enumerate(edge_ids)
+        ],
+    }
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("ROUTING_COMPOSITION_OVERDIRECT" in error for error in report["errors"])
+    assert any("requires at least one" in error for error in report["errors"])
+
+    lock["layout_plan"]["routing_plan"]["groups"] = [
+        {
+            "id": "main-spine",
+            "pattern": "spine",
+            "orientation": "horizontal",
+            "edges": edge_ids,
+        }
+    ]
+    assert validate_lock(lock)["status"] == "passed"
+
+    lock["layout_plan"]["routing_plan"]["groups"][0]["orientation"] = "mixed"
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("cannot use orientation" in error for error in report["errors"])
 
 
 def test_lock_requires_delivery_target_and_layout_selection_reason() -> None:
@@ -1319,6 +1398,132 @@ def test_visual_geometry_allows_symmetric_branch_diagonal() -> None:
     assert metric["source_notation_role"] == "decision"
 
 
+def _composition_route_svg(y_values: list[int]) -> ET.Element:
+    edges = "\n".join(
+        f'''<g data-diagram-id="e{index}" data-diagram-kind="edge"
+      data-from="a{index}" data-to="b{index}"
+      data-route-group="main-spine" data-route-pattern="spine">
+    <line x1="20" y1="{y}" x2="180" y2="{y}"/>
+  </g>'''
+        for index, y in enumerate(y_values)
+    )
+    return ET.fromstring(
+        f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 140">
+  {edges}
+</svg>'''
+    )
+
+
+def _composition_limits() -> dict[str, object]:
+    layouts = load_layouts()
+    return {
+        "route_economy": layouts["route_economy"],
+    }
+
+
+def _spine_routing_plan(edge_count: int) -> dict[str, object]:
+    return {
+        "strategy": "layered-backbone",
+        "groups": [
+            {
+                "id": "main-spine",
+                "pattern": "spine",
+                "orientation": "horizontal",
+                "edges": [f"e{index}" for index in range(edge_count)],
+            }
+        ],
+    }
+
+
+def test_v6_geometry_requires_planned_spine_to_share_a_corridor() -> None:
+    layouts = load_layouts()
+    root = _composition_route_svg([25, 50, 75, 100])
+    report, errors, _ = analyze_visual_geometry(
+        root,
+        (0, 0, 200, 140),
+        _composition_limits(),
+        routing_family="orthogonal",
+        routing_plan=_spine_routing_plan(4),
+        route_composition_policy=layouts["route_composition"],
+    )
+    assert any("ROUTING_GROUP_HAS_NO_SHARED_CORRIDOR" in error for error in errors)
+    assert report["route_composition"]["violations"][0]["violations"] == [
+        "shared-corridor"
+    ]
+
+    root = _composition_route_svg([60, 60, 60, 60])
+    report, errors, _ = analyze_visual_geometry(
+        root,
+        (0, 0, 200, 140),
+        _composition_limits(),
+        routing_family="orthogonal",
+        routing_plan=_spine_routing_plan(4),
+        route_composition_policy=layouts["route_composition"],
+    )
+    assert errors == []
+    assert report["route_composition"]["groups"][0][
+        "shared_corridor_coordinate"
+    ] == 60
+
+
+def _orbit_svg(path_data: str) -> ET.Element:
+    edges = "\n".join(
+        f'''<g data-diagram-id="orbit-{index}" data-diagram-kind="edge"
+      data-from="a" data-to="b"
+      data-route-group="main-orbit" data-route-pattern="orbit">
+    <path d="{path_data}"/>
+  </g>'''
+        for index in range(3)
+    )
+    return ET.fromstring(
+        f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 160">
+  {edges}
+</svg>'''
+    )
+
+
+def _orbit_routing_plan() -> dict[str, object]:
+    return {
+        "strategy": "loop-orbit",
+        "groups": [
+            {
+                "id": "main-orbit",
+                "pattern": "orbit",
+                "orientation": "perimeter",
+                "edges": [f"orbit-{index}" for index in range(3)],
+            }
+        ],
+    }
+
+
+def test_v6_geometry_rejects_loop_curves_that_are_visual_chords() -> None:
+    layouts = load_layouts()
+    shallow = _orbit_svg("M20 80 C55 78 95 78 130 80")
+    report, errors, _ = analyze_visual_geometry(
+        shallow,
+        (0, 0, 180, 160),
+        _composition_limits(),
+        routing_family="loop",
+        routing_plan=_orbit_routing_plan(),
+        route_composition_policy=layouts["route_composition"],
+    )
+    assert any("LOOP_ORBIT_TOO_SHALLOW" in error for error in errors)
+    assert "orbit-curvature" in report["route_composition"]["violations"][0][
+        "violations"
+    ]
+
+    visible_orbit = _orbit_svg("M20 80 C45 10 105 10 130 80")
+    _, errors, _ = analyze_visual_geometry(
+        visible_orbit,
+        (0, 0, 180, 160),
+        _composition_limits(),
+        routing_family="loop",
+        routing_plan=_orbit_routing_plan(),
+        route_composition_policy=layouts["route_composition"],
+    )
+    assert errors == []
+
+
 def test_v5_visual_gate_reports_route_economy_violations(tmp_path: Path) -> None:
     diagram_dir = _write_diagram(tmp_path)
     lock = _v5_architecture_lock()
@@ -1794,6 +1999,36 @@ def test_v5_preview_review_requires_lock_version_and_new_checks(tmp_path: Path) 
     )
 
 
+def test_v6_preview_review_requires_routing_composition_check(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    review_path = diagram_dir / "preview_review.yaml"
+    review = yaml.safe_load(review_path.read_text(encoding="utf-8"))
+    review["contract_version"] = 6
+    for check in V5_REQUIRED_CHECKS:
+        review["checks"][check] = "passed"
+    review_path.write_text(yaml.safe_dump(review, sort_keys=False), encoding="utf-8")
+    report = validate_preview_review(
+        diagram_dir / "preview.png",
+        review_path,
+        visual_path=diagram_dir / "visual.svg",
+        expected_contract_version=6,
+    )
+    assert report["status"] == "failed"
+    assert any("edge_routing_composition" in error for error in report["errors"])
+
+    review["checks"]["edge_routing_composition"] = "passed"
+    review_path.write_text(yaml.safe_dump(review, sort_keys=False), encoding="utf-8")
+    assert (
+        validate_preview_review(
+            diagram_dir / "preview.png",
+            review_path,
+            visual_path=diagram_dir / "visual.svg",
+            expected_contract_version=6,
+        )["status"]
+        == "passed"
+    )
+
+
 def test_build_report_uses_lock_version_for_preview_review(tmp_path: Path) -> None:
     diagram_dir = _write_diagram(tmp_path)
     (diagram_dir / "diagram_lock.yaml").write_text(
@@ -1930,6 +2165,28 @@ def test_stamp_visual_metadata_adds_v5_visual_tiers(tmp_path: Path) -> None:
     assert 'data-diagram-id="runtime"' in stamped and 'data-visual-tier="context"' in stamped
     assert 'data-diagram-id="node-a"' in stamped and 'data-visual-tier="primary"' in stamped
     assert 'data-diagram-id="node-b"' in stamped and 'data-visual-tier="focal"' in stamped
+
+
+def test_stamp_visual_metadata_adds_v6_routing_groups(tmp_path: Path) -> None:
+    lock = _v6_architecture_lock()
+    lock_path = tmp_path / "diagram_lock.yaml"
+    svg_path = tmp_path / "visual.svg"
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    svg_path.write_text(
+        '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120">
+  <g id="runtime"><rect x="5" y="5" width="250" height="110"/></g>
+  <g id="node-a"><rect x="20" y="45" width="70" height="40"/></g>
+  <g id="node-b"><rect x="170" y="45" width="70" height="40"/></g>
+  <g id="a-to-b"><path d="M90 65 H170"/></g>
+</svg>''',
+        encoding="utf-8",
+    )
+    result = stamp_visual_metadata(lock_path, svg_path, svg_path)
+    assert result["status"] == "passed"
+    assert result["route_metadata"] == ["a-to-b"]
+    stamped = svg_path.read_text(encoding="utf-8")
+    assert 'data-route-group="primary-call"' in stamped
+    assert 'data-route-pattern="direct"' in stamped
 
 
 def test_metadata_reserialization_does_not_bypass_noop_gate(tmp_path: Path) -> None:

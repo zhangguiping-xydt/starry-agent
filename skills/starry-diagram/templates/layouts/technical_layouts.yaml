@@ -1,4 +1,4 @@
-version: 5
+version: 6
 route_economy:
   direct_when_clear: true
   direct_path_clearance_px: 6
@@ -27,10 +27,20 @@ route_economy:
     primary: 2
     secondary: 3
     control: 4
+route_composition:
+  corridor_tolerance_px: 8
+  min_orbit_detour_ratio: 1.015
 patterns:
   layered-system:
     summary: Stack technical layers or runtime tiers with dependencies flowing in one direction.
     routing_family: orthogonal
+    routing_strategy: layered-backbone
+    allowed_route_patterns: [spine, bus, rail, port, direct, feedback]
+    composition_gate:
+      min_edges: 4
+      required_any: [spine, bus, rail, port]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.5
     supports: [architecture, component, deployment, concept]
     directions: [top-to-bottom, left-to-right]
     pick_when:
@@ -48,11 +58,19 @@ patterns:
       min_analyzable_edge_fraction: 0.8
     rules:
       - Allocate layer and boundary rectangles before placing nodes.
+      - Build one dominant dependency spine or a small set of shared boundary ports before routing independent edges.
       - Route dependencies through layer gaps instead of through peer nodes.
       - Keep the dominant dependency direction consistent across the canvas.
   bounded-context-map:
     summary: Show domain or runtime boundaries with a small number of labeled cross-boundary relationships.
     routing_family: orthogonal
+    routing_strategy: boundary-ports
+    allowed_route_patterns: [spine, bus, rail, port, direct, feedback]
+    composition_gate:
+      min_edges: 4
+      required_any: [spine, bus, rail, port]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.5
     supports: [architecture, business-architecture, component]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -75,6 +93,13 @@ patterns:
   dependency-map:
     summary: Show components or packages and their directed dependency graph.
     routing_family: orthogonal
+    routing_strategy: dependency-bundles
+    allowed_route_patterns: [spine, bus, rail, port, direct, feedback]
+    composition_gate:
+      min_edges: 4
+      required_any: [spine, bus, rail, port]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.5
     supports: [architecture, component]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -97,6 +122,13 @@ patterns:
   deployment-zones:
     summary: Nest environments, zones, hosts, containers, and deployed components.
     routing_family: orthogonal
+    routing_strategy: boundary-ports
+    allowed_route_patterns: [spine, bus, rail, port, direct, feedback]
+    composition_gate:
+      min_edges: 4
+      required_any: [spine, bus, rail, port]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.5
     supports: [deployment, architecture]
     directions: [top-to-bottom, left-to-right]
     pick_when:
@@ -119,6 +151,13 @@ patterns:
   capability-map:
     summary: Arrange business capabilities or domains as a balanced hierarchy or matrix.
     routing_family: orthogonal
+    routing_strategy: containment-first
+    allowed_route_patterns: [spine, bus, port, direct]
+    composition_gate:
+      min_edges: 6
+      required_any: [spine, bus, port]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.5
     supports: [business-architecture, concept]
     directions: [top-to-bottom, matrix]
     pick_when:
@@ -141,6 +180,13 @@ patterns:
   value-stream:
     summary: Show business stages and the capabilities or roles contributing to each stage.
     routing_family: axis
+    routing_strategy: value-axis
+    allowed_route_patterns: [axis, rail, port, direct, feedback]
+    composition_gate:
+      min_edges: 3
+      required_patterns: [axis]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.34
     supports: [business-architecture, flow]
     directions: [left-to-right]
     pick_when:
@@ -163,6 +209,13 @@ patterns:
   linear-flow:
     summary: Show three to eight ordered steps with at most one minor branch.
     routing_family: axis
+    routing_strategy: flow-spine
+    allowed_route_patterns: [axis, branch, rail, direct, feedback]
+    composition_gate:
+      min_edges: 3
+      required_patterns: [axis]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.34
     supports: [flow]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -185,6 +238,13 @@ patterns:
   branching-flow:
     summary: Show a primary process with decisions, exception branches, and explicit convergence.
     routing_family: branching
+    routing_strategy: branch-spine
+    allowed_route_patterns: [axis, branch, rail, direct, feedback]
+    composition_gate:
+      min_edges: 4
+      required_patterns: [axis, branch]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.25
     supports: [flow, state]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -202,11 +262,20 @@ patterns:
       min_analyzable_edge_fraction: 0.9
     rules:
       - Keep the happy path straight and route exceptions away from it.
+      - Group the happy path as one axis and decision/merge edges as explicit branch groups; do not treat every connector as independent.
       - Converge branches before the next major phase when semantics permit.
       - Route loopbacks on an outer rail instead of across the process body.
   control-sidecar-flow:
     summary: Show a primary flow plus a separate state, policy, evidence, or control plane.
     routing_family: orthogonal
+    routing_strategy: control-rail
+    allowed_route_patterns: [axis, bus, rail, port, direct, feedback]
+    composition_gate:
+      min_edges: 5
+      required_patterns: [axis]
+      required_any: [bus, rail, port]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.25
     supports: [flow, data-flow, event-flow, concept]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -229,6 +298,13 @@ patterns:
   swimlane-flow:
     summary: Show responsibility handoffs across actor, team, or system lanes.
     routing_family: axis
+    routing_strategy: lane-handoffs
+    allowed_route_patterns: [axis, handoff, rail, direct, feedback]
+    composition_gate:
+      min_edges: 4
+      required_any: [axis, handoff]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.4
     supports: [swimlane, flow]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -251,6 +327,13 @@ patterns:
   sequence-lifelines:
     summary: Show ordered messages across stable participant lifelines.
     routing_family: sequence
+    routing_strategy: message-grid
+    allowed_route_patterns: [message]
+    composition_gate:
+      min_edges: 1
+      required_patterns: [message]
+      min_group_edges: 1
+      max_independent_direct_ratio: 0
     supports: [sequence]
     directions: [top-to-bottom]
     pick_when:
@@ -272,6 +355,7 @@ patterns:
       max_messages_per_phase: 12
     rules:
       - Keep participant order stable and messages strictly top-to-bottom.
+      - Group all call and return edges into the message grid; horizontal directness is required notation here, not over-direct composition.
       - Use activation or grouping bands instead of moving messages out of order.
       - Partition the message stream with contiguous phase fragments when the soft density budget is exceeded.
       - Keep alt/opt/loop/ref fragments for source-grounded control semantics; they do not replace density phases.
@@ -279,6 +363,13 @@ patterns:
   er-domain-grid:
     summary: Arrange entities by domain with orthogonal relationship routing.
     routing_family: orthogonal
+    routing_strategy: relationship-bundles
+    allowed_route_patterns: [spine, bus, port, direct]
+    composition_gate:
+      min_edges: 6
+      required_any: [spine, bus, port]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.5
     supports: [er]
     directions: [left-to-right, top-to-bottom, matrix]
     pick_when:
@@ -301,6 +392,13 @@ patterns:
   state-transition:
     summary: Show lifecycle states with a clear initial state, terminal states, and guarded transitions.
     routing_family: lifecycle
+    routing_strategy: lifecycle-axis
+    allowed_route_patterns: [lifecycle, feedback]
+    composition_gate:
+      min_edges: 2
+      required_patterns: [lifecycle]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0
     supports: [state]
     directions: [left-to-right, top-to-bottom, radial]
     pick_when:
@@ -318,11 +416,19 @@ patterns:
       min_analyzable_edge_fraction: 0.8
     rules:
       - Put the primary lifecycle on one axis and exceptions outside it.
+      - Group forward transitions as a lifecycle axis so straight transitions read as one state progression rather than unrelated wires.
       - Keep self-transitions and loopbacks on local outer arcs.
       - Split orthogonal state regions into companion diagrams when needed.
   data-pipeline:
     summary: Show collection, transformation, storage, and consumption stages.
     routing_family: axis
+    routing_strategy: data-axis
+    allowed_route_patterns: [axis, bus, rail, port, direct, feedback]
+    composition_gate:
+      min_edges: 3
+      required_patterns: [axis]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.34
     supports: [data-flow]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -345,6 +451,13 @@ patterns:
   data-hub:
     summary: Show producers and consumers around a central store, platform, or exchange.
     routing_family: radial
+    routing_strategy: hub-spokes
+    allowed_route_patterns: [spoke, bus, port]
+    composition_gate:
+      min_edges: 3
+      required_patterns: [spoke]
+      min_group_edges: 3
+      max_independent_direct_ratio: 0
     supports: [data-flow, architecture]
     directions: [radial, left-to-right]
     pick_when:
@@ -367,6 +480,13 @@ patterns:
   event-bus:
     summary: Show producers, topics, subscribers, and projections around one or more event rails.
     routing_family: orthogonal
+    routing_strategy: event-rails
+    allowed_route_patterns: [bus, rail, port, direct]
+    composition_gate:
+      min_edges: 4
+      required_patterns: [bus]
+      min_group_edges: 2
+      max_independent_direct_ratio: 0.25
     supports: [event-flow, architecture]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -389,6 +509,13 @@ patterns:
   loop-mechanism:
     summary: Show a small conceptual feedback loop with explicit state and stopping conditions.
     routing_family: loop
+    routing_strategy: loop-orbit
+    allowed_route_patterns: [orbit, rail, port, feedback]
+    composition_gate:
+      min_edges: 3
+      required_patterns: [orbit]
+      min_group_edges: 3
+      max_independent_direct_ratio: 0
     supports: [concept, flow]
     directions: [radial, left-to-right]
     pick_when:
@@ -406,5 +533,6 @@ patterns:
       min_analyzable_edge_fraction: 0.8
     rules:
       - Limit the visible loop to the stages necessary to explain the mechanism.
+      - Draw the primary loop as a visible perimeter orbit; shallow curved chords do not establish a loop composition.
       - Put evidence, guardrails, and stop conditions adjacent to the stage they constrain.
       - Use a process detail diagram when operational steps exceed the loop budget.

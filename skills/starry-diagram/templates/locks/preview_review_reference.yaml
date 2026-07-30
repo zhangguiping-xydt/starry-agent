@@ -1,4 +1,4 @@
-contract_version: 5
+contract_version: 6
 preview_sha256: "replace-with-preview-png-sha256"
 visual_svg_sha256: "replace-with-visual-svg-sha256"
 reviewed_at_target_size: true
@@ -17,4 +17,5 @@ checks:
   composition_content_driven: passed
   edge_route_economy: passed
   edge_routing_rhythm: passed
+  edge_routing_composition: passed
 findings: []

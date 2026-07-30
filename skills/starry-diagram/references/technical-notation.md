@@ -1,6 +1,6 @@
 # Technical Notation Contract
 
-Contract version 3 introduced executable viewpoint and notation roles. Contract version 4 added pack identity, custom visual behavior, per-type treatments, and actual visual-signature checks. Use contract version 5 for new diagram packs; it additionally binds treatment to visible hierarchy, focal emphasis, and content-span composition checks. Diagrams may share palette, typography, and stroke language, but their geometry must remain recognizable as the locked technical type.
+Contract version 3 introduced executable viewpoint and notation roles. Contract version 4 added pack identity, custom visual behavior, per-type treatments, and actual visual-signature checks. Contract version 5 bound treatment to visible hierarchy, focal emphasis, and content-span composition checks. Use contract version 6 for new diagram packs; it additionally locks whole-diagram routing groups and verifies independent-direct share, shared corridors, and loop curvature. Diagrams may share palette, typography, and stroke language, but their geometry must remain recognizable as the locked technical type.
 
 ## Manifest fields
 

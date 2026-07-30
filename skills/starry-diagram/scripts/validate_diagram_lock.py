@@ -57,6 +57,23 @@ _DENSITIES = {"sparse", "balanced", "dense"}
 _VIEW_ROLES = {"standalone", "overview", "detail"}
 _REGION_PLACEMENTS = {"top", "bottom", "left", "right", "center", "background", "lanes"}
 _EDGE_ROLES = ("primary", "secondary", "control")
+_ROUTE_ORIENTATIONS = {"horizontal", "vertical", "radial", "perimeter", "mixed"}
+_BRANCH_NOTATION_ROLES = {"decision", "merge"}
+_ROUTE_PATTERN_ORIENTATIONS = {
+    "direct": _ROUTE_ORIENTATIONS,
+    "axis": {"horizontal", "vertical"},
+    "spine": {"horizontal", "vertical"},
+    "bus": {"horizontal", "vertical"},
+    "rail": {"horizontal", "vertical", "perimeter"},
+    "port": {"horizontal", "vertical"},
+    "branch": {"horizontal", "vertical", "radial", "mixed"},
+    "handoff": {"horizontal", "vertical", "mixed"},
+    "message": {"horizontal"},
+    "lifecycle": {"horizontal", "vertical"},
+    "spoke": {"radial"},
+    "orbit": {"perimeter"},
+    "feedback": {"horizontal", "vertical", "perimeter", "mixed"},
+}
 _TYPOGRAPHY_ROLES = (
     "diagram_title_size",
     "group_title_size",
@@ -383,6 +400,152 @@ def _approved_complexity_exception(value: Any) -> bool:
     )
 
 
+def _validate_routing_plan(
+    plan: Mapping[str, Any],
+    layout: Mapping[str, Any],
+    items: list[dict[str, str]],
+    edge_ids: set[str],
+    errors: list[str],
+) -> None:
+    routing_plan = plan.get("routing_plan")
+    if not isinstance(routing_plan, Mapping):
+        errors.append("layout_plan.routing_plan must be a mapping for contract v6")
+        return
+
+    expected_strategy = layout.get("routing_strategy")
+    strategy = routing_plan.get("strategy")
+    if strategy != expected_strategy:
+        errors.append(
+            f"layout_plan.routing_plan.strategy {strategy!r} must match "
+            f"the selected layout strategy {expected_strategy!r}"
+        )
+
+    allowed_patterns = set(layout.get("allowed_route_patterns", []))
+    groups = routing_plan.get("groups")
+    if not isinstance(groups, list) or not groups:
+        errors.append("layout_plan.routing_plan.groups must be a non-empty list")
+        return
+
+    item_map = {item["id"]: item for item in items}
+    route_group_ids: set[str] = set()
+    planned_edges: list[str] = []
+    group_records: list[tuple[str, list[str]]] = []
+    for index, group in enumerate(groups):
+        if not isinstance(group, Mapping):
+            errors.append(
+                f"layout_plan.routing_plan.groups item at index {index} must be a mapping"
+            )
+            continue
+        group_id = group.get("id")
+        if not _non_empty_text(group_id):
+            errors.append(f"routing group at index {index} must have an id")
+        elif group_id in route_group_ids:
+            errors.append(f"duplicate routing group id: {group_id}")
+        else:
+            route_group_ids.add(group_id)
+        pattern = group.get("pattern")
+        if pattern not in allowed_patterns:
+            errors.append(
+                f"routing group {_format_id(group_id)} pattern {pattern!r} is not "
+                "allowed by the selected layout"
+            )
+        orientation = group.get("orientation")
+        if orientation not in _ROUTE_ORIENTATIONS:
+            errors.append(
+                f"routing group {_format_id(group_id)} orientation must be one of "
+                f"{sorted(_ROUTE_ORIENTATIONS)}"
+            )
+        elif pattern in _ROUTE_PATTERN_ORIENTATIONS and orientation not in (
+            _ROUTE_PATTERN_ORIENTATIONS[pattern]
+        ):
+            errors.append(
+                f"routing group {_format_id(group_id)} pattern {pattern!r} cannot use "
+                f"orientation {orientation!r}; expected one of "
+                f"{sorted(_ROUTE_PATTERN_ORIENTATIONS[pattern])}"
+            )
+        values = group.get("edges")
+        valid_edges: list[str] = []
+        if not isinstance(values, list) or not values:
+            errors.append(
+                f"routing group {_format_id(group_id)} must have non-empty edges"
+            )
+            continue
+        for edge_id in values:
+            if not isinstance(edge_id, str) or not edge_id:
+                errors.append(
+                    f"routing group {_format_id(group_id)} contains an invalid edge id"
+                )
+            elif edge_id not in edge_ids:
+                errors.append(
+                    f"routing group {_format_id(group_id)} references unknown edge {edge_id}"
+                )
+            else:
+                valid_edges.append(edge_id)
+                planned_edges.append(edge_id)
+                if pattern == "branch":
+                    edge = item_map.get(edge_id, {})
+                    endpoint_roles = {
+                        item_map.get(edge.get("from", ""), {}).get("notation_role", ""),
+                        item_map.get(edge.get("to", ""), {}).get("notation_role", ""),
+                    }
+                    if not endpoint_roles & _BRANCH_NOTATION_ROLES:
+                        errors.append(
+                            f"routing group {_format_id(group_id)} edge {edge_id} uses "
+                            "branch routing without a decision or merge endpoint"
+                        )
+        if isinstance(pattern, str):
+            group_records.append((pattern, valid_edges))
+
+    edge_counts = Counter(planned_edges)
+    duplicate_edges = sorted(
+        edge_id for edge_id, count in edge_counts.items() if count > 1
+    )
+    if duplicate_edges:
+        errors.append(
+            f"routing plan edges must appear exactly once: duplicates {duplicate_edges}"
+        )
+    missing_edges = sorted(edge_ids - set(edge_counts))
+    if missing_edges:
+        errors.append(
+            f"layout_plan.routing_plan leaves edges unplanned: {missing_edges}"
+        )
+
+    gate = layout.get("composition_gate", {})
+    if not isinstance(gate, Mapping) or len(edge_ids) < int(gate.get("min_edges", 1)):
+        return
+    minimum_group_edges = int(gate.get("min_group_edges", 1))
+    qualified_patterns = {
+        pattern
+        for pattern, values in group_records
+        if len(values) >= minimum_group_edges
+    }
+    for required in gate.get("required_patterns", []):
+        if required not in qualified_patterns:
+            errors.append(
+                f"routing composition for strategy {expected_strategy!r} requires a "
+                f"{required!r} group with at least {minimum_group_edges} edges"
+            )
+    required_any = set(gate.get("required_any", []))
+    if required_any and not qualified_patterns & required_any:
+        errors.append(
+            f"routing composition for strategy {expected_strategy!r} requires at least "
+            f"one of {sorted(required_any)} with {minimum_group_edges} grouped edges"
+        )
+
+    direct_edges = sum(
+        len(values) for pattern, values in group_records if pattern == "direct"
+    )
+    direct_ratio = direct_edges / len(edge_ids) if edge_ids else 0.0
+    maximum_direct_ratio = float(gate.get("max_independent_direct_ratio", 1.0))
+    if direct_ratio > maximum_direct_ratio:
+        errors.append(
+            "ROUTING_COMPOSITION_OVERDIRECT: independent direct routes cover "
+            f"{direct_ratio:.0%} of edges; maximum for strategy {expected_strategy!r} "
+            f"is {maximum_direct_ratio:.0%}. Group edges into a type-native spine, "
+            "bus, rail, port, branch, lifecycle, message grid, spoke set, or orbit."
+        )
+
+
 def _validate_layout_plan(
     lock: dict[str, Any],
     profile: dict[str, Any],
@@ -542,6 +705,9 @@ def _validate_layout_plan(
     missing_edges = sorted(edge_ids - set(edge_counts))
     if missing_edges:
         errors.append(f"layout_plan.edge_roles leaves edges unclassified: {missing_edges}")
+
+    if contract_version(lock) >= 6:
+        _validate_routing_plan(plan, layout, items, edge_ids, errors)
 
     limit_failures: list[str] = []
     section_limits = layout.get("section_limits", {}) if isinstance(layout, Mapping) else {}

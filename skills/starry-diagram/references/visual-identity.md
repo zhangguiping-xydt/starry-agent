@@ -1,6 +1,6 @@
 # Visual Identity Contract
 
-Use contract version 5 for new diagram packs. Keep technical truth separate from visual behavior. Contract v4 remains valid for existing packs, but it does not bind treatment prose to visible hierarchy and composition.
+Use contract version 6 for new diagram packs. Keep technical truth separate from visual behavior. Contract v5 remains valid for existing packs and binds treatment prose to visible hierarchy and composition, but it does not require whole-diagram routing composition.
 
 Apply locks in this order:
 
@@ -60,7 +60,7 @@ Keep `style_tokens` as the deterministic renderer input. For contract v4:
 - `style_tokens.strokes` exactly equals `pack_identity.stroke_language`.
 - `style_tokens.connectors.width` equals `stroke_language.connector_width`.
 - `style_tokens.connectors.routing` is `adaptive` for contract v5+: presets do not force every technical type through one connector grammar.
-- Geometry and connector tokens may be selected for the pack, but must not erase type-native notation, add bends to clear same-axis edges, or replace an orthogonal/lifecycle/branching composition with indiscriminate diagonals.
+- Geometry and connector tokens may be selected for the pack, but must not erase type-native notation or override the v6 routing composition. Local directness is not absolute: a locked spine, bus, rail, port, orbit, or feedback path may intentionally use a shared corridor, while unrelated edges must not be disguised as one group.
 
 ## Diagram treatment
 

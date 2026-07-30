@@ -196,6 +196,11 @@ def _validate_lock_consistency(
             f"diagram {entry_id} manifest contract_version {manifest_version} "
             f"requires a v5 lock, got {lock_version}"
         )
+    if manifest_version >= 6 and lock_version < 6:
+        errors.append(
+            f"diagram {entry_id} manifest contract_version {manifest_version} "
+            f"requires a v6 lock, got {lock_version}"
+        )
     comparisons = {
         "id": lock.get("id"),
         "type": lock.get("type"),
@@ -253,17 +258,22 @@ def validate_manifest(
     if version < 3:
         warnings.append(
             "legacy diagram manifest does not enforce viewpoint diversity; "
-            "use contract_version: 5 for new diagram packs"
+            "use contract_version: 6 for new diagram packs"
         )
     elif version < 4:
         warnings.append(
             "contract v3 does not enforce pack identity or per-type renderer families; "
-            "use contract_version: 5 for new diagram packs"
+            "use contract_version: 6 for new diagram packs"
         )
     elif version < 5:
         warnings.append(
             "contract v4 does not bind diagram treatment to visible hierarchy or canvas use; "
-            "use contract_version: 5 for new diagram packs"
+            "use contract_version: 6 for new diagram packs"
+        )
+    elif version < 6:
+        warnings.append(
+            "contract v5 validates individual routes but does not require whole-diagram "
+            "routing composition; use contract_version: 6 for new diagram packs"
         )
 
     for field in ("project", "mode", "source_summary"):

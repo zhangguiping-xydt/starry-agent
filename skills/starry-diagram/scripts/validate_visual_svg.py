@@ -440,6 +440,17 @@ def validate_visual(
                     if isinstance(layout.get("routing_family"), str)
                     else "axis"
                 ),
+                routing_plan=(
+                    layout_plan.get("routing_plan")
+                    if contract_version(lock) >= 6
+                    and isinstance(layout_plan, Mapping)
+                    else None
+                ),
+                route_composition_policy=(
+                    layouts_data.get("route_composition")
+                    if contract_version(lock) >= 6
+                    else None
+                ),
             )
             geometry_report["checked"] = True
             geometry_report["pattern"] = pattern

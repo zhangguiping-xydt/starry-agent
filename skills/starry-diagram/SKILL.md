@@ -17,7 +17,7 @@ Execute every gate with the bundled scripts. A written claim that a gate passed 
 
 ## Default diagram-pack mode
 
-When the user does not specify a diagram type, evaluate architecture/business-architecture/flow/swimlane/sequence/er/state/data-flow/deployment/component/event-flow/concept. Each candidate status must be one of generated/skipped/needs_clarification with a source-grounded reason. New packs use `contract_version: 5`; every generated entry declares a distinct `reading_question`, a source-grounded `viewpoint_family`, a compatible `notation_profile`, and a type-native `diagram_treatment`.
+When the user does not specify a diagram type, evaluate architecture/business-architecture/flow/swimlane/sequence/er/state/data-flow/deployment/component/event-flow/concept. Each candidate status must be one of generated/skipped/needs_clarification with a source-grounded reason. New packs use `contract_version: 6`; every generated entry declares a distinct `reading_question`, a source-grounded `viewpoint_family`, a compatible `notation_profile`, and a type-native `diagram_treatment`.
 
 ## Fact gate
 
@@ -69,7 +69,7 @@ Every semantic visual group must declare `data-diagram-id` and `data-diagram-kin
 
 For medium and strong enhancement, visual.svg must contain a real geometric or typographic improvement. Copying semantic.svg or changing metadata only is a failed visual stage.
 
-Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. When endpoints share a clear visual axis, connect them directly. When they do not, follow the selected layout's `routing_family`: use minimal orthogonal connectors for layered and boundary-heavy diagrams, reserve symmetric diagonals for real decision/merge branches, preserve lifecycle axes, and use radial connectors only for radial or loop layouts. Keep true obstacle avoidance, backward feedback, loopbacks, and control links on outer rails or shared buses. Put `data-text-role` on every visible `<text>`. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unnecessary aligned-path bends, routing-family violations, excessive detour ratios, unsupported geometry coverage, overlong routes, node/text collisions, text overflow, role-size drift, low effective delivery size, weak contrast, and ambiguous edge-label anchoring.
+Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then execute `layout_plan.routing_plan` before routing individual edges. Group every edge into a type-native axis, spine, bus, rail, port, branch, message grid, lifecycle axis, spoke set, orbit, or feedback path. Treat a clear direct segment as one possible group pattern, not the global optimum: a declared spine, bus, rail, port, orbit, or feedback route may intentionally outrank the local chord while remaining within total detour and bend limits. Stamp `data-route-group` and `data-route-pattern` on every v6 edge. Put `data-text-role` on every visible `<text>`. The visual gate rejects excessive independent-direct share, fake grouped routes without a shared corridor, shallow loop chords, routing metadata drift, crossings, node intrusions, unjustified detours, routing-family violations, overlong routes, node/text collisions, text overflow, role-size drift, low effective delivery size, weak contrast, and ambiguous edge-label anchoring.
 
 For contract v4+, put `data-pack-identity`, `data-renderer-family`, and `data-composition-rhythm` on the SVG root. For v5, also bind every semantic item to its computed visual tier and execute the focal emphasis. Use only the permitted stroke widths, caps, and joins from `pack_identity.stroke_language`. The pack gate rejects repeated rounded-card signatures across distinct technical types unless the manifest records a source-grounded `visual_diversity_reason`.
 
@@ -139,6 +139,7 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Leaving semantic items out of `primary_items`/regions or edges out of `edge_roles`.
 - Routing control links repeatedly across the primary flow instead of using a side rail or companion view.
 - Adding an elbow to a clear same-axis edge merely because a preset says `orthogonal`, or replacing a layout-native orthogonal spine with a web of clear but rhythm-breaking diagonals.
+- Optimizing every connector independently, labeling unrelated point-to-point edges as a spine, or drawing a loop as nearly straight curved chords instead of a visible orbit.
 - Using a renderer or enhancement level that violates the selected type profile.
 - Copying `semantic.svg` to `visual.svg` for medium or strong enhancement.
 - Omitting stable semantic ids and endpoint metadata from visual.svg.

@@ -28,11 +28,12 @@ Run this review after static visual validation and target-size preview rendering
 | `composition_content_driven` | The canvas, dominant axis, spacing, and containment follow this diagram's reading question and topology rather than repeating another diagram's skeleton. |
 | `edge_route_economy` | Clear same-axis edges connect directly; off-axis bends stay minimal; every outer rail has an obvious obstacle, feedback, loopback, boundary-port, or control purpose. |
 | `edge_routing_rhythm` | Connector geometry reinforces the selected layout: layered/boundary views use an orthogonal spine, decision branches are balanced, lifecycle transitions stay on their axis, and the page does not become a diagonal web. |
+| `edge_routing_composition` | The full connector set reads as a designed system: architecture dependencies share backbones/ports, flows have a main spine and explicit branches, loops follow a visible orbit, and sequence/lifecycle straight lines remain type-native rather than being penalized as over-direct. |
 
 ## Review artifact
 
 ```yaml
-contract_version: 5
+contract_version: 6
 preview_sha256: "<sha256 of preview.png>"
 visual_svg_sha256: "<sha256 of visual.svg>"
 reviewed_at_target_size: true
@@ -51,6 +52,7 @@ checks:
   composition_content_driven: passed
   edge_route_economy: passed
   edge_routing_rhythm: passed
+  edge_routing_composition: passed
 findings: []
 ```
 

@@ -72,7 +72,7 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - Selected layout complexity limits are not exceeded without explicit user approval.
 - Analyzable edge coverage meets the selected layout threshold.
 - Edge crossings, edge-to-nonendpoint-node intersections, and long routes stay within the selected layout limits.
-- Contract v5 clear forward edges use direct routes; bend counts and actual/direct detour ratios satisfy `technical_layouts.yaml.route_economy`.
+- Contract v5 clear same-axis edges use direct routes; off-axis edges obey the selected layout's `routing_family`; bend counts and actual/direct detour ratios satisfy `technical_layouts.yaml.route_economy`.
 - Edge labels meet `style_tokens.typography.edge_label_size`, not only the global minimum.
 - Text stays inside its owning geometry with locked delivery padding.
 - Text and nodes do not overlap or leave the canvas.
@@ -103,7 +103,8 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 | Visual semantic drift | Write visual_failed; keep semantic artifacts |
 | Visual no-op at medium/strong | Fail visual gate and perform the required visual work |
 | Text overflow or undersized delivery text | Expand/reflow geometry, reroute downstream edges, or split the diagram |
-| Clear edge takes an unnecessary dogleg | Replace it with the direct chord; retain bends only for detected obstacles, backward feedback, or control rails |
+| Clear same-axis edge takes an unnecessary dogleg | Replace it with the direct segment; retain bends only for off-axis type-native routing, detected obstacles, backward feedback, or control rails |
+| Layered or boundary-heavy view becomes a diagonal web | Restore a minimal orthogonal spine with explicit ports; keep diagonals for decision/merge or declared radial/loop layouts |
 | Missing or wrong-size preview | Render `preview.png` at the locked delivery target and rebuild reports |
 | Missing or wrong-size raster delivery | Render `delivery.png` from `visual.svg` at the declared `pixel_ratio`; keep `preview.png` unchanged |
 | Raster font resolves to an undeclared fallback | Install a declared family or update the style font stack, then rerender; do not sharpen the bitmap |

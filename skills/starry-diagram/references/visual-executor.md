@@ -44,9 +44,9 @@ Read `layout_plan` and the selected entry in `templates/layouts/technical_layout
 2. Place `primary_items` on the pattern's dominant reading axis.
 3. Place secondary region members without weakening the primary path.
 4. Route `edge_roles.primary`, then `secondary`, then `control`.
-5. Prefer the direct endpoint chord whenever it clears non-endpoint nodes. A fixed orthogonal style is not a reason to add a bend.
+5. Keep clear same-axis connectors straight. For off-axis endpoints, apply the layout's `routing_family`: minimal orthogonal routing for layers/boundaries, symmetric diagonals only at decision/merge branches, lifecycle-axis routing for states, and radial routing only where the layout declares it.
 6. Route verified backward feedback, loopbacks, obstacle avoidance, and control links on outer rails, shared buses, or explicit ports.
-7. Run the geometry-aware visual gate and revise until bend counts and detour ratios pass in addition to crossings and node intrusions.
+7. Run the geometry-aware visual gate and revise until bend counts, detour ratios, diagonal policy, and visual routing rhythm pass in addition to crossings and node intrusions.
 
 Do not treat composition rhythm as metadata:
 

@@ -69,7 +69,7 @@ Every semantic visual group must declare `data-diagram-id` and `data-diagram-kin
 
 For medium and strong enhancement, visual.svg must contain a real geometric or typographic improvement. Copying semantic.svg or changing metadata only is a failed visual stage.
 
-Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. Use a direct connector whenever the endpoint chord is clear. Keep only true obstacle avoidance, backward feedback, loopbacks, and control links on outer rails or shared buses. Put `data-text-role` on every visible `<text>`. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unnecessary clear-path bends, excessive detour ratios, unsupported geometry coverage, overlong routes, node/text collisions, text overflow, role-size drift, low effective delivery size, weak contrast, and ambiguous edge-label anchoring.
+Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. When endpoints share a clear visual axis, connect them directly. When they do not, follow the selected layout's `routing_family`: use minimal orthogonal connectors for layered and boundary-heavy diagrams, reserve symmetric diagonals for real decision/merge branches, preserve lifecycle axes, and use radial connectors only for radial or loop layouts. Keep true obstacle avoidance, backward feedback, loopbacks, and control links on outer rails or shared buses. Put `data-text-role` on every visible `<text>`. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unnecessary aligned-path bends, routing-family violations, excessive detour ratios, unsupported geometry coverage, overlong routes, node/text collisions, text overflow, role-size drift, low effective delivery size, weak contrast, and ambiguous edge-label anchoring.
 
 For contract v4+, put `data-pack-identity`, `data-renderer-family`, and `data-composition-rhythm` on the SVG root. For v5, also bind every semantic item to its computed visual tier and execute the focal emphasis. Use only the permitted stroke widths, caps, and joins from `pack_identity.stroke_language`. The pack gate rejects repeated rounded-card signatures across distinct technical types unless the manifest records a source-grounded `visual_diversity_reason`.
 
@@ -138,7 +138,7 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Declaring a decision, datastore, state, boundary, or participant role in metadata while rendering generic card geometry.
 - Leaving semantic items out of `primary_items`/regions or edges out of `edge_roles`.
 - Routing control links repeatedly across the primary flow instead of using a side rail or companion view.
-- Adding an elbow to a clear forward edge merely because a preset says `orthogonal`; direct clear routes take precedence.
+- Adding an elbow to a clear same-axis edge merely because a preset says `orthogonal`, or replacing a layout-native orthogonal spine with a web of clear but rhythm-breaking diagonals.
 - Using a renderer or enhancement level that violates the selected type profile.
 - Copying `semantic.svg` to `visual.svg` for medium or strong enhancement.
 - Omitting stable semantic ids and endpoint metadata from visual.svg.

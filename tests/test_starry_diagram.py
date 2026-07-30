@@ -1188,16 +1188,16 @@ def test_visual_rejects_edge_through_nonendpoint_node(tmp_path: Path) -> None:
 
 def _route_geometry_svg(path_data: str, *, obstacle: bool = False) -> ET.Element:
     middle = (
-        '<g data-diagram-id="middle" data-diagram-kind="node">'
+        '<g data-diagram-id="middle" data-diagram-kind="node" data-notation-role="process">'
         '<rect x="80" y="28" width="40" height="44"/></g>'
         if obstacle
         else ""
     )
     return ET.fromstring(
         f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
-  <g data-diagram-id="a" data-diagram-kind="node"><rect x="10" y="35" width="40" height="30"/></g>
+  <g data-diagram-id="a" data-diagram-kind="node" data-notation-role="process"><rect x="10" y="35" width="40" height="30"/></g>
   {middle}
-  <g data-diagram-id="b" data-diagram-kind="node"><rect x="150" y="35" width="40" height="30"/></g>
+  <g data-diagram-id="b" data-diagram-kind="node" data-notation-role="process"><rect x="150" y="35" width="40" height="30"/></g>
   <g data-diagram-id="a-b" data-diagram-kind="edge" data-from="a" data-to="b"><path d="{path_data}"/></g>
 </svg>'''
     )
@@ -1252,6 +1252,71 @@ def test_visual_geometry_allows_backward_feedback_outer_rail() -> None:
     metric = report["route_economy"]["edges"][0]
     assert metric["backward_feedback"] is True
     assert metric["direct_rule_exempt"] is True
+
+
+def _nonaligned_route_svg(
+    path_data: str,
+    *,
+    source_role: str = "process",
+    target_role: str = "process",
+) -> ET.Element:
+    return ET.fromstring(
+        f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 140">
+  <g data-diagram-id="a" data-diagram-kind="node" data-notation-role="{source_role}"><rect x="10" y="15" width="40" height="30"/></g>
+  <g data-diagram-id="b" data-diagram-kind="node" data-notation-role="{target_role}"><rect x="150" y="75" width="40" height="30"/></g>
+  <g data-diagram-id="a-b" data-diagram-kind="edge" data-from="a" data-to="b"><path d="{path_data}"/></g>
+</svg>'''
+    )
+
+
+def test_visual_geometry_allows_minimal_orthogonal_route_when_not_aligned() -> None:
+    root = _nonaligned_route_svg("M50 30 H100 V90 H150")
+    report, errors, _ = analyze_visual_geometry(
+        root,
+        (0, 0, 220, 140),
+        _route_limits(),
+        edge_roles={"primary": ["a-b"], "secondary": [], "control": []},
+        primary_items=["a", "b"],
+        routing_family="orthogonal",
+    )
+    assert errors == []
+    metric = report["route_economy"]["edges"][0]
+    assert metric["axis_aligned"] is False
+    assert metric["route_mode"] == "orthogonal"
+    assert metric["bend_count"] == 2
+
+
+def test_visual_geometry_rejects_diagonal_in_orthogonal_routing_family() -> None:
+    root = _nonaligned_route_svg("M50 30 L150 90")
+    report, errors, _ = analyze_visual_geometry(
+        root,
+        (0, 0, 220, 140),
+        _route_limits(),
+        edge_roles={"primary": ["a-b"], "secondary": [], "control": []},
+        primary_items=["a", "b"],
+        routing_family="orthogonal",
+    )
+    assert any("DIAGONAL_ROUTE_BREAKS_RHYTHM" in error for error in errors)
+    violation = report["route_economy"]["violations"][0]
+    assert "routing-rhythm" in violation["reasons"]
+
+
+def test_visual_geometry_allows_symmetric_branch_diagonal() -> None:
+    root = _nonaligned_route_svg(
+        "M50 30 L150 90", source_role="decision", target_role="process"
+    )
+    report, errors, _ = analyze_visual_geometry(
+        root,
+        (0, 0, 220, 140),
+        _route_limits(),
+        edge_roles={"primary": ["a-b"], "secondary": [], "control": []},
+        primary_items=["a", "b"],
+        routing_family="branching",
+    )
+    assert errors == []
+    metric = report["route_economy"]["edges"][0]
+    assert metric["diagonal_allowed"] is True
+    assert metric["source_notation_role"] == "decision"
 
 
 def test_v5_visual_gate_reports_route_economy_violations(tmp_path: Path) -> None:
@@ -1716,6 +1781,7 @@ def test_v5_preview_review_requires_lock_version_and_new_checks(tmp_path: Path) 
     review["checks"]["visual_hierarchy_clear"] = "passed"
     review["checks"]["composition_content_driven"] = "passed"
     review["checks"]["edge_route_economy"] = "passed"
+    review["checks"]["edge_routing_rhythm"] = "passed"
     review_path.write_text(yaml.safe_dump(review, sort_keys=False), encoding="utf-8")
     assert (
         validate_preview_review(

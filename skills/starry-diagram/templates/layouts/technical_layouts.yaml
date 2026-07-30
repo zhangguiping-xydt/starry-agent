@@ -1,14 +1,23 @@
-version: 4
+version: 5
 route_economy:
   direct_when_clear: true
   direct_path_clearance_px: 6
-  max_clear_detour_ratio:
+  axis_alignment_tolerance_px: 8
+  max_axis_aligned_detour_ratio:
     primary: 1.12
     secondary: 1.18
     control: 3.0
-  max_clear_bends:
+  max_axis_aligned_bends:
     primary: 0
     secondary: 0
+    control: 4
+  max_clear_detour_ratio:
+    primary: 1.65
+    secondary: 1.8
+    control: 3.0
+  max_clear_bends:
+    primary: 2
+    secondary: 2
     control: 4
   max_total_detour_ratio:
     primary: 2.0
@@ -21,6 +30,7 @@ route_economy:
 patterns:
   layered-system:
     summary: Stack technical layers or runtime tiers with dependencies flowing in one direction.
+    routing_family: orthogonal
     supports: [architecture, component, deployment, concept]
     directions: [top-to-bottom, left-to-right]
     pick_when:
@@ -42,6 +52,7 @@ patterns:
       - Keep the dominant dependency direction consistent across the canvas.
   bounded-context-map:
     summary: Show domain or runtime boundaries with a small number of labeled cross-boundary relationships.
+    routing_family: orthogonal
     supports: [architecture, business-architecture, component]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -63,6 +74,7 @@ patterns:
       - Split when cross-boundary relationships dominate internal structure.
   dependency-map:
     summary: Show components or packages and their directed dependency graph.
+    routing_family: orthogonal
     supports: [architecture, component]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -84,6 +96,7 @@ patterns:
       - Do not use a force-directed layout for a directed dependency story.
   deployment-zones:
     summary: Nest environments, zones, hosts, containers, and deployed components.
+    routing_family: orthogonal
     supports: [deployment, architecture]
     directions: [top-to-bottom, left-to-right]
     pick_when:
@@ -105,6 +118,7 @@ patterns:
       - Route cross-zone links through the nearest boundary edge.
   capability-map:
     summary: Arrange business capabilities or domains as a balanced hierarchy or matrix.
+    routing_family: orthogonal
     supports: [business-architecture, concept]
     directions: [top-to-bottom, matrix]
     pick_when:
@@ -126,6 +140,7 @@ patterns:
       - Move value-stream relationships to a separate view when they obscure the map.
   value-stream:
     summary: Show business stages and the capabilities or roles contributing to each stage.
+    routing_family: axis
     supports: [business-architecture, flow]
     directions: [left-to-right]
     pick_when:
@@ -147,6 +162,7 @@ patterns:
       - Avoid bidirectional arrows on the primary stream.
   linear-flow:
     summary: Show three to eight ordered steps with at most one minor branch.
+    routing_family: axis
     supports: [flow]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -168,6 +184,7 @@ patterns:
       - Use branching-flow when decisions create more than one substantial branch.
   branching-flow:
     summary: Show a primary process with decisions, exception branches, and explicit convergence.
+    routing_family: branching
     supports: [flow, state]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -189,6 +206,7 @@ patterns:
       - Route loopbacks on an outer rail instead of across the process body.
   control-sidecar-flow:
     summary: Show a primary flow plus a separate state, policy, evidence, or control plane.
+    routing_family: orthogonal
     supports: [flow, data-flow, event-flow, concept]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -210,6 +228,7 @@ patterns:
       - Split control details into a companion diagram when the sidecar exceeds four nodes or eight links.
   swimlane-flow:
     summary: Show responsibility handoffs across actor, team, or system lanes.
+    routing_family: axis
     supports: [swimlane, flow]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -231,6 +250,7 @@ patterns:
       - Split phases when repeated long-range handoffs create crossings.
   sequence-lifelines:
     summary: Show ordered messages across stable participant lifelines.
+    routing_family: sequence
     supports: [sequence]
     directions: [top-to-bottom]
     pick_when:
@@ -258,6 +278,7 @@ patterns:
       - Split scenarios when phases cannot stay within the readable message budget.
   er-domain-grid:
     summary: Arrange entities by domain with orthogonal relationship routing.
+    routing_family: orthogonal
     supports: [er]
     directions: [left-to-right, top-to-bottom, matrix]
     pick_when:
@@ -279,6 +300,7 @@ patterns:
       - Split large schemas by bounded context and add an overview relationship map.
   state-transition:
     summary: Show lifecycle states with a clear initial state, terminal states, and guarded transitions.
+    routing_family: lifecycle
     supports: [state]
     directions: [left-to-right, top-to-bottom, radial]
     pick_when:
@@ -300,6 +322,7 @@ patterns:
       - Split orthogonal state regions into companion diagrams when needed.
   data-pipeline:
     summary: Show collection, transformation, storage, and consumption stages.
+    routing_family: axis
     supports: [data-flow]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -321,6 +344,7 @@ patterns:
       - Split batch and streaming paths when they cannot share the same route cleanly.
   data-hub:
     summary: Show producers and consumers around a central store, platform, or exchange.
+    routing_family: radial
     supports: [data-flow, architecture]
     directions: [radial, left-to-right]
     pick_when:
@@ -342,6 +366,7 @@ patterns:
       - Use edge bundling or ports for repeated connections.
   event-bus:
     summary: Show producers, topics, subscribers, and projections around one or more event rails.
+    routing_family: orthogonal
     supports: [event-flow, architecture]
     directions: [left-to-right, top-to-bottom]
     pick_when:
@@ -363,6 +388,7 @@ patterns:
       - Split unrelated event domains rather than adding a second crossing rail.
   loop-mechanism:
     summary: Show a small conceptual feedback loop with explicit state and stopping conditions.
+    routing_family: loop
     supports: [concept, flow]
     directions: [radial, left-to-right]
     pick_when:

@@ -90,7 +90,16 @@ def load_layouts(path: Path | None = None) -> dict[str, Any]:
         or clearance < 0
     ):
         raise ValueError("route_economy.direct_path_clearance_px must be non-negative")
+    alignment_tolerance = route_economy.get("axis_alignment_tolerance_px")
+    if (
+        not isinstance(alignment_tolerance, int | float)
+        or isinstance(alignment_tolerance, bool)
+        or alignment_tolerance < 0
+    ):
+        raise ValueError("route_economy.axis_alignment_tolerance_px must be non-negative")
     for field in (
+        "max_axis_aligned_detour_ratio",
+        "max_axis_aligned_bends",
         "max_clear_detour_ratio",
         "max_clear_bends",
         "max_total_detour_ratio",
@@ -111,6 +120,19 @@ def load_layouts(path: Path | None = None) -> dict[str, Any]:
     for name, value in patterns.items():
         if not isinstance(name, str) or not name or not isinstance(value, Mapping):
             raise ValueError("every technical layout must have a name and mapping body")
+        routing_family = value.get("routing_family")
+        if routing_family not in {
+            "orthogonal",
+            "axis",
+            "branching",
+            "sequence",
+            "lifecycle",
+            "radial",
+            "loop",
+        }:
+            raise ValueError(
+                f"technical layout {name} must define a supported routing_family"
+            )
         if not isinstance(value.get("summary"), str) or not value["summary"].strip():
             raise ValueError(f"technical layout {name} must define a summary")
         for field in ("supports", "directions", "pick_when", "skip_when", "alternatives", "rules"):

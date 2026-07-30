@@ -15,6 +15,7 @@ _NODE_KINDS = {"node", "participant", "entity", "state"}
 _GEOMETRY_TAGS = {"rect", "circle", "ellipse", "polygon", "path"}
 _EPSILON = 1e-6
 _ROUTE_ROLES = ("primary", "secondary", "control")
+_BRANCH_NOTATION_ROLES = {"decision", "merge"}
 
 Point = tuple[float, float]
 Segment = tuple[Point, Point]
@@ -437,11 +438,13 @@ def _edge_role_map(edge_roles: Any) -> dict[str, str]:
 def _route_economy(
     edges: Mapping[str, dict[str, Any]],
     nodes: Mapping[str, BBox],
+    node_roles: Mapping[str, str],
     policy: Any,
     *,
     edge_roles: Any = None,
     primary_items: Any = None,
     allow_backward_detours: bool = False,
+    routing_family: str = "axis",
 ) -> tuple[dict[str, Any], list[str]]:
     if not isinstance(policy, Mapping) or policy.get("direct_when_clear") is not True:
         return {"checked": False}, []
@@ -452,6 +455,17 @@ def _route_economy(
         if isinstance(clearance_value, int | float) and not isinstance(clearance_value, bool)
         else 0.0
     )
+    alignment_value = policy.get("axis_alignment_tolerance_px", 0)
+    alignment_tolerance = (
+        float(alignment_value)
+        if isinstance(alignment_value, int | float)
+        and not isinstance(alignment_value, bool)
+        else 0.0
+    )
+    aligned_detour_limits = _role_limits(
+        policy.get("max_axis_aligned_detour_ratio")
+    )
+    aligned_bend_limits = _role_limits(policy.get("max_axis_aligned_bends"))
     clear_detour_limits = _role_limits(policy.get("max_clear_detour_ratio"))
     clear_bend_limits = _role_limits(policy.get("max_clear_bends"))
     total_detour_limits = _role_limits(policy.get("max_total_detour_ratio"))
@@ -499,6 +513,19 @@ def _route_economy(
         )
         exempt_from_direct = role == "control" or source == target or backward
         direct_clear = not blockers and direct_length > _EPSILON
+        delta_x = abs(end[0] - start[0])
+        delta_y = abs(end[1] - start[1])
+        axis_aligned = (
+            delta_x <= alignment_tolerance or delta_y <= alignment_tolerance
+        )
+        source_role = node_roles.get(source, "") if isinstance(source, str) else ""
+        target_role = node_roles.get(target, "") if isinstance(target, str) else ""
+        branch_endpoint = bool(
+            {source_role, target_role} & _BRANCH_NOTATION_ROLES
+        )
+        diagonal_allowed = routing_family in {"radial", "loop"} or (
+            routing_family == "branching" and branch_endpoint
+        )
         edge_violations: list[str] = []
 
         total_ratio_limit = total_detour_limits.get(role)
@@ -520,15 +547,37 @@ def _route_economy(
                 f"maximum for {role} edges is {int(total_bend_limit)}"
             )
 
+        if (
+            not axis_aligned
+            and not exempt_from_direct
+            and not diagonal_allowed
+            and route_mode not in {"orthogonal", "unknown"}
+        ):
+            edge_violations.append("routing-rhythm")
+            errors.append(
+                f"DIAGONAL_ROUTE_BREAKS_RHYTHM: edge {edge_id} uses {route_mode} "
+                f"routing in the {routing_family} routing family; use a minimal "
+                "orthogonal connector or align the endpoints"
+            )
+
         if direct_clear and not exempt_from_direct:
-            clear_ratio_limit = clear_detour_limits.get(role)
+            clear_ratio_limit = (
+                aligned_detour_limits.get(role)
+                if axis_aligned
+                else clear_detour_limits.get(role)
+            )
             if clear_ratio_limit is not None and detour_ratio > clear_ratio_limit:
                 edge_violations.append("clear-path-detour")
                 errors.append(
-                    f"UNNECESSARY_DETOUR: edge {edge_id} has a clear direct route but is "
-                    f"{detour_ratio:.2f}x the direct distance; maximum is {clear_ratio_limit:g}x"
+                    f"UNNECESSARY_DETOUR: edge {edge_id} has a clear economical route but is "
+                    f"{detour_ratio:.2f}x the endpoint distance; maximum is "
+                    f"{clear_ratio_limit:g}x"
                 )
-            clear_bend_limit = clear_bend_limits.get(role)
+            clear_bend_limit = (
+                aligned_bend_limits.get(role)
+                if axis_aligned
+                else clear_bend_limits.get(role)
+            )
             if (
                 clear_bend_limit is not None
                 and bend_count is not None
@@ -536,7 +585,7 @@ def _route_economy(
             ):
                 edge_violations.append("clear-path-bends")
                 errors.append(
-                    f"UNNECESSARY_DETOUR: edge {edge_id} has a clear direct route but uses "
+                    f"UNNECESSARY_DETOUR: edge {edge_id} has a clear economical route but uses "
                     f"{bend_count} bend(s); maximum is {int(clear_bend_limit)}"
                 )
 
@@ -548,6 +597,11 @@ def _route_economy(
             "detour_ratio": round(detour_ratio, 3),
             "direct_clear": direct_clear,
             "direct_blockers": blockers,
+            "axis_aligned": axis_aligned,
+            "routing_family": routing_family,
+            "source_notation_role": source_role,
+            "target_notation_role": target_role,
+            "diagonal_allowed": diagonal_allowed,
             "backward_feedback": backward,
             "direct_rule_exempt": exempt_from_direct,
         }
@@ -571,11 +625,13 @@ def analyze_visual_geometry(
     edge_roles: Any = None,
     primary_items: Any = None,
     allow_backward_detours: bool = False,
+    routing_family: str = "axis",
 ) -> tuple[dict[str, Any], list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
     edges: dict[str, dict[str, Any]] = {}
     nodes: dict[str, BBox] = {}
+    node_roles: dict[str, str] = {}
 
     for element in root.iter():
         item_id = element.attrib.get("data-diagram-id")
@@ -595,6 +651,7 @@ def analyze_visual_geometry(
             box = _semantic_element_bbox(element)
             if box is not None:
                 nodes[item_id] = box
+                node_roles[item_id] = element.attrib.get("data-notation-role", "")
 
     analyzed_edges = {
         item_id: edge
@@ -667,10 +724,12 @@ def analyze_visual_geometry(
     route_economy, route_errors = _route_economy(
         analyzed_edges,
         nodes,
+        node_roles,
         limits.get("route_economy"),
         edge_roles=edge_roles,
         primary_items=primary_items,
         allow_backward_detours=allow_backward_detours,
+        routing_family=routing_family,
     )
     errors.extend(route_errors)
 

@@ -16,4 +16,5 @@ checks:
   visual_hierarchy_clear: passed
   composition_content_driven: passed
   edge_route_economy: passed
+  edge_routing_rhythm: passed
 findings: []

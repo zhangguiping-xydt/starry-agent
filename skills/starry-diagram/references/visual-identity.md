@@ -59,8 +59,8 @@ Keep `style_tokens` as the deterministic renderer input. For contract v4:
 - `style_tokens.typography` exactly equals `pack_identity.typography`.
 - `style_tokens.strokes` exactly equals `pack_identity.stroke_language`.
 - `style_tokens.connectors.width` equals `stroke_language.connector_width`.
-- `style_tokens.connectors.routing` is `adaptive` for contract v5+: presets do not force every technical type through orthogonal doglegs.
-- Geometry and connector tokens may be selected for the pack, but must not erase type-native notation or override direct-clear routing.
+- `style_tokens.connectors.routing` is `adaptive` for contract v5+: presets do not force every technical type through one connector grammar.
+- Geometry and connector tokens may be selected for the pack, but must not erase type-native notation, add bends to clear same-axis edges, or replace an orthogonal/lifecycle/branching composition with indiscriminate diagonals.
 
 ## Diagram treatment
 

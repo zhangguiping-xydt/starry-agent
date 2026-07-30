@@ -435,6 +435,11 @@ def validate_visual(
                 ),
                 allow_backward_detours=pattern
                 in {"branching-flow", "loop-mechanism", "state-transition"},
+                routing_family=(
+                    layout.get("routing_family")
+                    if isinstance(layout.get("routing_family"), str)
+                    else "axis"
+                ),
             )
             geometry_report["checked"] = True
             geometry_report["pattern"] = pattern

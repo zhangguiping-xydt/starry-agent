@@ -33,7 +33,7 @@ For packs with four or more generated diagrams, evaluate viewpoint and visual-si
 
 Read `references/visual-identity.md` before selecting or customizing appearance. Lock one `pack_identity` for family consistency, then give each generated diagram a `diagram_treatment` whose `renderer_family` equals its technical type. Presets are editable starting points, not a closed style list; use `visual_behavior.mode: custom` for behavior that no preset captures.
 
-Keep `style_tokens` as resolved deterministic values and validate that their colors, typography, and strokes match the pack identity. Before drawing each diagram, re-read the pack identity and the diagram's treatment. Share tokens and measurement helpers across renderers, but do not route different technical types through one generic card or `svg_node()` implementation.
+Keep `style_tokens` as resolved deterministic values and validate that their colors, typography, and strokes match the pack identity. Use `style_tokens.connectors.routing: adaptive` for contract v5+: connector geometry belongs to the selected technical type and edge role, not the visual preset. Before drawing each diagram, re-read the pack identity and the diagram's treatment. Share tokens and measurement helpers across renderers, but do not route different technical types through one generic card or `svg_node()` implementation.
 
 For contract v5, make treatment executable: declare a source-grounded `focal_item` for focal/explanatory compositions plus explicit hierarchy, spacing, and differentiation strategies. The focal item must be on the primary path and visibly emphasized. Stamp `data-visual-tier` on every semantic element. The visual gate verifies tier binding, focal emphasis, canvas use, and stranded margins; prose intent alone cannot pass.
 
@@ -69,7 +69,7 @@ Every semantic visual group must declare `data-diagram-id` and `data-diagram-kin
 
 For medium and strong enhancement, visual.svg must contain a real geometric or typographic improvement. Copying semantic.svg or changing metadata only is a failed visual stage.
 
-Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. Keep loopbacks and control links on outer rails or shared buses. Put `data-text-role` on every visible `<text>`. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unsupported geometry coverage, overlong routes, node/text collisions, text overflow, role-size drift, low effective delivery size, weak contrast, and ambiguous edge-label anchoring.
+Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. Use a direct connector whenever the endpoint chord is clear. Keep only true obstacle avoidance, backward feedback, loopbacks, and control links on outer rails or shared buses. Put `data-text-role` on every visible `<text>`. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unnecessary clear-path bends, excessive detour ratios, unsupported geometry coverage, overlong routes, node/text collisions, text overflow, role-size drift, low effective delivery size, weak contrast, and ambiguous edge-label anchoring.
 
 For contract v4+, put `data-pack-identity`, `data-renderer-family`, and `data-composition-rhythm` on the SVG root. For v5, also bind every semantic item to its computed visual tier and execute the focal emphasis. Use only the permitted stroke widths, caps, and joins from `pack_identity.stroke_language`. The pack gate rejects repeated rounded-card signatures across distinct technical types unless the manifest records a source-grounded `visual_diversity_reason`.
 
@@ -138,6 +138,7 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Declaring a decision, datastore, state, boundary, or participant role in metadata while rendering generic card geometry.
 - Leaving semantic items out of `primary_items`/regions or edges out of `edge_roles`.
 - Routing control links repeatedly across the primary flow instead of using a side rail or companion view.
+- Adding an elbow to a clear forward edge merely because a preset says `orthogonal`; direct clear routes take precedence.
 - Using a renderer or enhancement level that violates the selected type profile.
 - Copying `semantic.svg` to `visual.svg` for medium or strong enhancement.
 - Omitting stable semantic ids and endpoint metadata from visual.svg.

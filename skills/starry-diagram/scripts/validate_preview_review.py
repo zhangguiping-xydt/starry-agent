@@ -30,6 +30,7 @@ REQUIRED_CHECKS = (
 V5_REQUIRED_CHECKS = REQUIRED_CHECKS + (
     "visual_hierarchy_clear",
     "composition_content_driven",
+    "edge_route_economy",
 )
 
 

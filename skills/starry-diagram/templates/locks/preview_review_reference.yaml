@@ -15,4 +15,5 @@ checks:
   no_slide_chrome: passed
   visual_hierarchy_clear: passed
   composition_content_driven: passed
+  edge_route_economy: passed
 findings: []

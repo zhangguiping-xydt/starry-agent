@@ -14,6 +14,7 @@ _EDGE_KINDS = {"edge", "message", "relationship", "transition"}
 _NODE_KINDS = {"node", "participant", "entity", "state"}
 _GEOMETRY_TAGS = {"rect", "circle", "ellipse", "polygon", "path"}
 _EPSILON = 1e-6
+_ROUTE_ROLES = ("primary", "secondary", "control")
 
 Point = tuple[float, float]
 Segment = tuple[Point, Point]
@@ -352,10 +353,224 @@ def _length(segments: list[Segment]) -> float:
     return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in segments)
 
 
+def _route_mode(element: Any, segments: list[Segment]) -> str:
+    candidates = [
+        child
+        for child in element.iter()
+        if child is not element and _local_name(child.tag) in {"line", "polyline", "path"}
+    ]
+    if not candidates:
+        return "unknown"
+    candidate = candidates[0]
+    tag = _local_name(candidate.tag)
+    if tag == "line":
+        return "straight"
+    if tag == "path" and re.search(r"[AaCcQqSsTt]", candidate.attrib.get("d", "")):
+        return "curved"
+    simplified = _simplify_segments(segments)
+    if len(simplified) <= 1:
+        return "straight"
+    if all(
+        abs(end[0] - start[0]) <= _EPSILON
+        or abs(end[1] - start[1]) <= _EPSILON
+        for start, end in simplified
+    ):
+        return "orthogonal"
+    return "polyline"
+
+
+def _simplify_segments(segments: list[Segment]) -> list[Segment]:
+    simplified: list[Segment] = []
+    for start, end in segments:
+        if math.hypot(end[0] - start[0], end[1] - start[1]) <= _EPSILON:
+            continue
+        if not simplified:
+            simplified.append((start, end))
+            continue
+        previous_start, previous_end = simplified[-1]
+        first = (previous_end[0] - previous_start[0], previous_end[1] - previous_start[1])
+        second = (end[0] - start[0], end[1] - start[1])
+        cross = first[0] * second[1] - first[1] * second[0]
+        dot = first[0] * second[0] + first[1] * second[1]
+        contiguous = math.hypot(previous_end[0] - start[0], previous_end[1] - start[1]) <= 1e-3
+        if contiguous and abs(cross) <= 1e-3 and dot > 0:
+            simplified[-1] = (previous_start, end)
+        else:
+            simplified.append((start, end))
+    return simplified
+
+
+def _expanded_box(box: BBox, clearance: float) -> BBox:
+    return (
+        box[0] - clearance,
+        box[1] - clearance,
+        box[2] + clearance,
+        box[3] + clearance,
+    )
+
+
+def _role_limits(value: Any) -> dict[str, float]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        role: float(limit)
+        for role in _ROUTE_ROLES
+        if isinstance((limit := value.get(role)), int | float)
+        and not isinstance(limit, bool)
+    }
+
+
+def _edge_role_map(edge_roles: Any) -> dict[str, str]:
+    if not isinstance(edge_roles, Mapping):
+        return {}
+    result: dict[str, str] = {}
+    for role in _ROUTE_ROLES:
+        values = edge_roles.get(role)
+        if not isinstance(values, list):
+            continue
+        for edge_id in values:
+            if isinstance(edge_id, str) and edge_id:
+                result[edge_id] = role
+    return result
+
+
+def _route_economy(
+    edges: Mapping[str, dict[str, Any]],
+    nodes: Mapping[str, BBox],
+    policy: Any,
+    *,
+    edge_roles: Any = None,
+    primary_items: Any = None,
+    allow_backward_detours: bool = False,
+) -> tuple[dict[str, Any], list[str]]:
+    if not isinstance(policy, Mapping) or policy.get("direct_when_clear") is not True:
+        return {"checked": False}, []
+
+    clearance_value = policy.get("direct_path_clearance_px", 0)
+    clearance = (
+        float(clearance_value)
+        if isinstance(clearance_value, int | float) and not isinstance(clearance_value, bool)
+        else 0.0
+    )
+    clear_detour_limits = _role_limits(policy.get("max_clear_detour_ratio"))
+    clear_bend_limits = _role_limits(policy.get("max_clear_bends"))
+    total_detour_limits = _role_limits(policy.get("max_total_detour_ratio"))
+    total_bend_limits = _role_limits(policy.get("max_total_bends"))
+    roles = _edge_role_map(edge_roles)
+    primary_order = {
+        item_id: index
+        for index, item_id in enumerate(primary_items if isinstance(primary_items, list) else [])
+        if isinstance(item_id, str)
+    }
+
+    metrics: list[dict[str, Any]] = []
+    violations: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for edge_id, edge in edges.items():
+        segments = edge["segments"]
+        simplified = _simplify_segments(segments)
+        if not simplified:
+            continue
+        start = simplified[0][0]
+        end = simplified[-1][1]
+        direct_length = math.hypot(end[0] - start[0], end[1] - start[1])
+        actual_length = _length(segments)
+        detour_ratio = actual_length / direct_length if direct_length > _EPSILON else 1.0
+        route_mode = edge.get("route_mode", "unknown")
+        bend_count = None if route_mode == "curved" else max(0, len(simplified) - 1)
+        endpoints = {edge.get("from"), edge.get("to")}
+        direct_segment = (start, end)
+        blockers = sorted(
+            node_id
+            for node_id, box in nodes.items()
+            if node_id not in endpoints
+            and _segment_intersects_box(direct_segment, _expanded_box(box, clearance))
+        )
+        role = roles.get(edge_id, "secondary")
+        source = edge.get("from")
+        target = edge.get("to")
+        backward = (
+            allow_backward_detours
+            and isinstance(source, str)
+            and isinstance(target, str)
+            and source in primary_order
+            and target in primary_order
+            and primary_order[target] <= primary_order[source]
+        )
+        exempt_from_direct = role == "control" or source == target or backward
+        direct_clear = not blockers and direct_length > _EPSILON
+        edge_violations: list[str] = []
+
+        total_ratio_limit = total_detour_limits.get(role)
+        if total_ratio_limit is not None and detour_ratio > total_ratio_limit:
+            edge_violations.append("excessive-detour")
+            errors.append(
+                f"EXCESSIVE_EDGE_DETOUR: edge {edge_id} route is {detour_ratio:.2f}x "
+                f"the direct distance, maximum for {role} edges is {total_ratio_limit:g}x"
+            )
+        total_bend_limit = total_bend_limits.get(role)
+        if (
+            total_bend_limit is not None
+            and bend_count is not None
+            and bend_count > total_bend_limit
+        ):
+            edge_violations.append("excessive-bends")
+            errors.append(
+                f"EXCESSIVE_EDGE_BENDS: edge {edge_id} has {bend_count} bend(s), "
+                f"maximum for {role} edges is {int(total_bend_limit)}"
+            )
+
+        if direct_clear and not exempt_from_direct:
+            clear_ratio_limit = clear_detour_limits.get(role)
+            if clear_ratio_limit is not None and detour_ratio > clear_ratio_limit:
+                edge_violations.append("clear-path-detour")
+                errors.append(
+                    f"UNNECESSARY_DETOUR: edge {edge_id} has a clear direct route but is "
+                    f"{detour_ratio:.2f}x the direct distance; maximum is {clear_ratio_limit:g}x"
+                )
+            clear_bend_limit = clear_bend_limits.get(role)
+            if (
+                clear_bend_limit is not None
+                and bend_count is not None
+                and bend_count > clear_bend_limit
+            ):
+                edge_violations.append("clear-path-bends")
+                errors.append(
+                    f"UNNECESSARY_DETOUR: edge {edge_id} has a clear direct route but uses "
+                    f"{bend_count} bend(s); maximum is {int(clear_bend_limit)}"
+                )
+
+        record = {
+            "edge": edge_id,
+            "role": role,
+            "route_mode": route_mode,
+            "bend_count": bend_count,
+            "detour_ratio": round(detour_ratio, 3),
+            "direct_clear": direct_clear,
+            "direct_blockers": blockers,
+            "backward_feedback": backward,
+            "direct_rule_exempt": exempt_from_direct,
+        }
+        metrics.append(record)
+        if edge_violations:
+            violations.append({**record, "reasons": edge_violations})
+
+    return {
+        "checked": True,
+        "policy": dict(policy),
+        "edges": metrics,
+        "violations": violations,
+    }, errors
+
+
 def analyze_visual_geometry(
     root: Any,
     viewbox: tuple[float, float, float, float],
     limits: Mapping[str, Any],
+    *,
+    edge_roles: Any = None,
+    primary_items: Any = None,
+    allow_backward_detours: bool = False,
 ) -> tuple[dict[str, Any], list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -374,6 +589,7 @@ def analyze_visual_geometry(
                 "to": element.attrib.get("data-to"),
                 "segments": segments,
                 "supported": supported,
+                "route_mode": _route_mode(element, segments),
             }
         elif kind in _NODE_KINDS:
             box = _semantic_element_bbox(element)
@@ -448,6 +664,16 @@ def analyze_visual_geometry(
                 f"{float(max_long_ratio):g} canvas diagonals"
             )
 
+    route_economy, route_errors = _route_economy(
+        analyzed_edges,
+        nodes,
+        limits.get("route_economy"),
+        edge_roles=edge_roles,
+        primary_items=primary_items,
+        allow_backward_detours=allow_backward_detours,
+    )
+    errors.extend(route_errors)
+
     report = {
         "coverage": {
             "edges_total": len(edges),
@@ -464,5 +690,6 @@ def analyze_visual_geometry(
         "edge_crossings": crossings,
         "edge_node_intersections": node_intersections,
         "long_edges": long_edges,
+        "route_economy": route_economy,
     }
     return report, errors, warnings

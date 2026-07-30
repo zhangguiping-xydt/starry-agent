@@ -1,4 +1,23 @@
-version: 3
+version: 4
+route_economy:
+  direct_when_clear: true
+  direct_path_clearance_px: 6
+  max_clear_detour_ratio:
+    primary: 1.12
+    secondary: 1.18
+    control: 3.0
+  max_clear_bends:
+    primary: 0
+    secondary: 0
+    control: 4
+  max_total_detour_ratio:
+    primary: 2.0
+    secondary: 2.5
+    control: 3.0
+  max_total_bends:
+    primary: 2
+    secondary: 3
+    control: 4
 patterns:
   layered-system:
     summary: Stack technical layers or runtime tiers with dependencies flowing in one direction.

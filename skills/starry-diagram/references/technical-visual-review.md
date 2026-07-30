@@ -26,6 +26,7 @@ Run this review after static visual validation and target-size preview rendering
 | `no_slide_chrome` | The diagram does not add page furniture, decorative card grids, hero copy, badges, or imagery unrelated to technical reading. |
 | `visual_hierarchy_clear` | The v5 focal, primary, secondary, control, and context tiers are visible without inspecting metadata; the focal item is a real reading anchor. |
 | `composition_content_driven` | The canvas, dominant axis, spacing, and containment follow this diagram's reading question and topology rather than repeating another diagram's skeleton. |
+| `edge_route_economy` | Clear forward edges connect directly; every bend or outer rail has an obvious obstacle, feedback, loopback, boundary-port, or control purpose. |
 
 ## Review artifact
 
@@ -47,6 +48,7 @@ checks:
   no_slide_chrome: passed
   visual_hierarchy_clear: passed
   composition_content_driven: passed
+  edge_route_economy: passed
 findings: []
 ```
 

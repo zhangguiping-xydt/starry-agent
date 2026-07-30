@@ -362,6 +362,11 @@ def _validate_style_tokens(style_tokens: Any, version: int, errors: list[str]) -
                     errors.append(f"style_tokens.connectors.{field} must be positive")
             if not _non_empty_text(connectors.get("routing")):
                 errors.append("style_tokens.connectors.routing must be non-empty")
+            elif version >= 5 and connectors.get("routing") != "adaptive":
+                errors.append(
+                    "style_tokens.connectors.routing must be adaptive for contract v5+; "
+                    "diagram type and edge role own connector geometry"
+                )
         if not isinstance(style_tokens.get("strokes"), Mapping):
             errors.append("style_tokens.strokes must be a mapping for contract v4")
 

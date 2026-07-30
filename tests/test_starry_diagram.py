@@ -6,6 +6,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 import zlib
 from pathlib import Path
 
@@ -37,6 +38,7 @@ from validate_preview_review import (  # noqa: E402
 )
 from validate_semantic_source import validate_semantic_source  # noqa: E402
 from validate_visual_svg import validate_visual_svg  # noqa: E402
+from visual_geometry import analyze_visual_geometry  # noqa: E402
 from visual_identity import validate_pack_identity  # noqa: E402
 from visual_legibility import _contrast_ratio  # noqa: E402
 
@@ -138,6 +140,7 @@ def _v4_architecture_lock() -> dict[str, object]:
 def _v5_architecture_lock() -> dict[str, object]:
     lock = _v4_architecture_lock()
     lock["contract_version"] = 5
+    lock["style_tokens"]["connectors"]["routing"] = "adaptive"
     lock["diagram_treatment"].update(
         {
             "focal_item": "node-b",
@@ -726,6 +729,14 @@ def test_v5_lock_requires_executable_treatment_and_primary_focal_item() -> None:
     assert any("layout_plan.primary_items" in error for error in report["errors"])
 
 
+def test_v5_lock_requires_adaptive_connector_routing() -> None:
+    lock = _v5_architecture_lock()
+    lock["style_tokens"]["connectors"]["routing"] = "orthogonal"
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("must be adaptive" in error for error in report["errors"])
+
+
 def test_v3_branching_flow_requires_decision_role() -> None:
     lock = _base_lock("flow", "mermaid", "medium")
     lock.update(
@@ -1175,6 +1186,98 @@ def test_visual_rejects_edge_through_nonendpoint_node(tmp_path: Path) -> None:
     assert any("nonendpoint-node" in error for error in report["visual"]["errors"])
 
 
+def _route_geometry_svg(path_data: str, *, obstacle: bool = False) -> ET.Element:
+    middle = (
+        '<g data-diagram-id="middle" data-diagram-kind="node">'
+        '<rect x="80" y="28" width="40" height="44"/></g>'
+        if obstacle
+        else ""
+    )
+    return ET.fromstring(
+        f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+  <g data-diagram-id="a" data-diagram-kind="node"><rect x="10" y="35" width="40" height="30"/></g>
+  {middle}
+  <g data-diagram-id="b" data-diagram-kind="node"><rect x="150" y="35" width="40" height="30"/></g>
+  <g data-diagram-id="a-b" data-diagram-kind="edge" data-from="a" data-to="b"><path d="{path_data}"/></g>
+</svg>'''
+    )
+
+
+def _route_limits() -> dict[str, object]:
+    return {"route_economy": load_layouts()["route_economy"]}
+
+
+def test_visual_geometry_rejects_clear_unnecessary_detour() -> None:
+    root = _route_geometry_svg("M50 50 V80 H150 V50")
+    report, errors, _ = analyze_visual_geometry(
+        root,
+        (0, 0, 200, 120),
+        _route_limits(),
+        edge_roles={"primary": ["a-b"], "secondary": [], "control": []},
+        primary_items=["a", "b"],
+    )
+    assert any("UNNECESSARY_DETOUR" in error for error in errors)
+    violation = report["route_economy"]["violations"][0]
+    assert violation["edge"] == "a-b"
+    assert violation["bend_count"] == 2
+    assert violation["direct_clear"] is True
+
+
+def test_visual_geometry_allows_detour_around_real_obstacle() -> None:
+    root = _route_geometry_svg("M50 50 V85 H150 V50", obstacle=True)
+    report, errors, _ = analyze_visual_geometry(
+        root,
+        (0, 0, 200, 120),
+        _route_limits(),
+        edge_roles={"primary": ["a-b"], "secondary": [], "control": []},
+        primary_items=["a", "middle", "b"],
+    )
+    assert errors == []
+    metric = report["route_economy"]["edges"][0]
+    assert metric["direct_clear"] is False
+    assert metric["direct_blockers"] == ["middle"]
+
+
+def test_visual_geometry_allows_backward_feedback_outer_rail() -> None:
+    root = _route_geometry_svg("M150 50 V85 H50 V50")
+    report, errors, _ = analyze_visual_geometry(
+        root,
+        (0, 0, 200, 120),
+        _route_limits(),
+        edge_roles={"primary": [], "secondary": ["a-b"], "control": []},
+        primary_items=["b", "a"],
+        allow_backward_detours=True,
+    )
+    assert errors == []
+    metric = report["route_economy"]["edges"][0]
+    assert metric["backward_feedback"] is True
+    assert metric["direct_rule_exempt"] is True
+
+
+def test_v5_visual_gate_reports_route_economy_violations(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    lock = _v5_architecture_lock()
+    (diagram_dir / "diagram_lock.yaml").write_text(
+        yaml.safe_dump(lock, sort_keys=False), encoding="utf-8"
+    )
+    visual_path = diagram_dir / "visual.svg"
+    visual_path.write_text(
+        visual_path.read_text(encoding="utf-8").replace(
+            'd="M90 65 H180"', 'd="M90 65 V100 H180 V65"'
+        ),
+        encoding="utf-8",
+    )
+    report = validate_visual_svg(
+        diagram_dir / "diagram_lock.yaml",
+        visual_path,
+        semantic_path=diagram_dir / "semantic.svg",
+    )
+    assert report["visual"]["geometry"]["route_economy"]["checked"] is True
+    assert any(
+        "UNNECESSARY_DETOUR" in error for error in report["visual"]["errors"]
+    )
+
+
 def test_v3_visual_rejects_decision_rendered_as_process_box(tmp_path: Path) -> None:
     lock = _base_lock("flow", "mermaid", "medium")
     lock.update(
@@ -1612,6 +1715,7 @@ def test_v5_preview_review_requires_lock_version_and_new_checks(tmp_path: Path) 
     review["contract_version"] = 5
     review["checks"]["visual_hierarchy_clear"] = "passed"
     review["checks"]["composition_content_driven"] = "passed"
+    review["checks"]["edge_route_economy"] = "passed"
     review_path.write_text(yaml.safe_dump(review, sort_keys=False), encoding="utf-8")
     assert (
         validate_preview_review(

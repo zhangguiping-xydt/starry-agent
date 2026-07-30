@@ -61,7 +61,8 @@ The validator rejects an unapproved exception and reports an approved exception 
 2. Place `primary_items` on the dominant reading axis.
 3. Place region members and secondary items without disturbing the primary path.
 4. Route primary edges, then secondary edges, then control edges.
-5. Put loopbacks and control connections on outer rails or shared buses.
-6. Run the geometry-aware visual gate and revise until crossings, node intrusions, long routes, and typography checks pass.
+5. Test the direct endpoint chord first. Use it when it clears non-endpoint nodes; do not add an elbow for visual habit or preset consistency.
+6. Put verified backward feedback, loopbacks, obstacle avoidance, and control connections on outer rails or shared buses.
+7. Run the geometry-aware visual gate and revise until crossings, node intrusions, unnecessary detours, long routes, and typography checks pass.
 
 The catalog is a composition grammar, not a slide template. Do not add page chrome, decorative imagery, card grids, or shadows that do not improve technical reading.

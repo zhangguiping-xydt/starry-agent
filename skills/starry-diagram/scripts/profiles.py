@@ -78,6 +78,36 @@ def load_layouts(path: Path | None = None) -> dict[str, Any]:
         "max_long_edge_ratio",
         "min_analyzable_edge_fraction",
     }
+    route_economy = data.get("route_economy")
+    if not isinstance(route_economy, Mapping):
+        raise ValueError("technical layouts must define route_economy")
+    if route_economy.get("direct_when_clear") is not True:
+        raise ValueError("route_economy.direct_when_clear must be true")
+    clearance = route_economy.get("direct_path_clearance_px")
+    if (
+        not isinstance(clearance, int | float)
+        or isinstance(clearance, bool)
+        or clearance < 0
+    ):
+        raise ValueError("route_economy.direct_path_clearance_px must be non-negative")
+    for field in (
+        "max_clear_detour_ratio",
+        "max_clear_bends",
+        "max_total_detour_ratio",
+        "max_total_bends",
+    ):
+        values = route_economy.get(field)
+        if not isinstance(values, Mapping):
+            raise ValueError(f"route_economy.{field} must be a mapping")
+        if not {"primary", "secondary", "control"} <= set(values):
+            raise ValueError(f"route_economy.{field} must define every edge role")
+        if not all(
+            isinstance(value, int | float)
+            and not isinstance(value, bool)
+            and value >= 0
+            for value in values.values()
+        ):
+            raise ValueError(f"route_economy.{field} values must be non-negative numbers")
     for name, value in patterns.items():
         if not isinstance(name, str) or not name or not isinstance(value, Mapping):
             raise ValueError("every technical layout must have a name and mapping body")

@@ -22,7 +22,7 @@ try:
         svg_text_content,
         write_json,
     )
-    from notation import validate_visual_notation
+    from notation import contract_version, validate_visual_notation
     from profiles import (
         enhancement_rank,
         layout_for,
@@ -51,7 +51,7 @@ except ModuleNotFoundError:
         svg_text_content,
         write_json,
     )
-    from notation import validate_visual_notation
+    from notation import contract_version, validate_visual_notation
     from profiles import (
         enhancement_rank,
         layout_for,
@@ -401,6 +401,10 @@ def validate_visual(
         quality_limits = layout.get("quality_limits", {})
         if isinstance(quality_limits, Mapping):
             effective_limits = dict(quality_limits)
+            if contract_version(lock) >= 5:
+                route_economy = layouts_data.get("route_economy")
+                if isinstance(route_economy, Mapping):
+                    effective_limits["route_economy"] = dict(route_economy)
             visual_style = lock.get("visual_style", {})
             level = (
                 visual_style.get("enhancement_level")
@@ -419,6 +423,18 @@ def validate_visual(
                 root,
                 actual_viewbox,
                 effective_limits,
+                edge_roles=(
+                    layout_plan.get("edge_roles")
+                    if isinstance(layout_plan, Mapping)
+                    else None
+                ),
+                primary_items=(
+                    layout_plan.get("primary_items")
+                    if isinstance(layout_plan, Mapping)
+                    else None
+                ),
+                allow_backward_detours=pattern
+                in {"branching-flow", "loop-mechanism", "state-transition"},
             )
             geometry_report["checked"] = True
             geometry_report["pattern"] = pattern

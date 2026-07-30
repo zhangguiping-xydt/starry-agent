@@ -34,7 +34,7 @@ geometry:
 connectors:
   width: 1.8
   arrow_size: 7
-  routing: orthogonal
+  routing: adaptive
 stroke_language:
   node_width: 1.4
   boundary_width: 1.2

@@ -9,7 +9,7 @@
 | 路径 | 类型 | 说明 |
 |------|------|------|
 | [`skills/repo-to-skill/`](skills/repo-to-skill/) | Skill | 包装 `repo-to-skill` CLI 的 skill，供 agent 调起。 |
-| [`skills/starry-diagram/`](skills/starry-diagram/) | Skill | 用于生成架构、业务、流程、时序、ER、部署和精修 SVG 图表包的 skill。 |
+| [`starry-diagram`](https://github.com/zhangguiping-xydt/starry-diagram) | 独立 Skill（submodule） | 独立维护的技术图 skill，用于生成架构、业务、流程、时序、ER、部署和精修 SVG 图表包。 |
 | [`repo_to_skill/`](repo_to_skill/) + [`pyproject.toml`](pyproject.toml) | 工具 + 库 | `repo-to-skill` CLI：把本地仓库和用户目标变成可安装的可调用 skill。 |
 | [`docs/`](docs/) | 文档 | 中英文工作原理、技能解析、架构、安全。 |
 

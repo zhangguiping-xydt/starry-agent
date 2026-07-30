@@ -8,6 +8,7 @@ from typing import Any
 try:
     from common import semantic_items, svg_semantic_elements
     from notation import contract_version
+    from visual_geometry import _semantic_element_bbox
 except ModuleNotFoundError:
     import sys
     from pathlib import Path
@@ -17,6 +18,7 @@ except ModuleNotFoundError:
         sys.path.insert(0, str(scripts_dir))
     from common import semantic_items, svg_semantic_elements
     from notation import contract_version
+    from visual_geometry import _semantic_element_bbox
 
 
 _HEX_COLOR_RE = re.compile(r"#[0-9a-fA-F]{6}\Z")
@@ -39,6 +41,11 @@ _TREATMENT_FIELDS = (
     "emphasis",
     "boundary_style",
     "connector_style",
+)
+_V5_TREATMENT_FIELDS = (
+    "hierarchy_strategy",
+    "spacing_strategy",
+    "differentiation_strategy",
 )
 _STROKE_WIDTH_FIELDS = (
     "node_width",
@@ -172,6 +179,7 @@ def validate_pack_identity(
 def validate_diagram_treatment(
     treatment: Any,
     diagram_type: Any,
+    version: int = 4,
 ) -> tuple[dict[str, Any], list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -193,21 +201,212 @@ def validate_diagram_treatment(
     variation_reason = treatment.get("variation_reason")
     if variation_reason is not None and not _text(variation_reason):
         errors.append("diagram_treatment.variation_reason must be non-empty when provided")
+    if version >= 5:
+        for field in _V5_TREATMENT_FIELDS:
+            if not _text(treatment.get(field)):
+                errors.append(f"diagram_treatment.{field} must be non-empty for contract v5")
+        rhythm = treatment.get("composition_rhythm")
+        focal_item = treatment.get("focal_item")
+        if rhythm in {"focal", "explanatory"} and not _text(focal_item):
+            errors.append(
+                "diagram_treatment.focal_item must name the visual anchor for "
+                f"contract v5 {rhythm} compositions"
+            )
+        if focal_item is not None and not _text(focal_item):
+            errors.append("diagram_treatment.focal_item must be non-empty when provided")
     return {
         "checked": True,
         "renderer_family": treatment.get("renderer_family"),
         "composition_rhythm": treatment.get("composition_rhythm"),
         "signature": treatment_signature(treatment),
+        "focal_item": treatment.get("focal_item"),
     }, errors, warnings
 
 
 def treatment_signature(treatment: Any) -> str | None:
     if not isinstance(treatment, Mapping):
         return None
-    values = [treatment.get(field) for field in _TREATMENT_FIELDS[1:]]
+    fields = list(_TREATMENT_FIELDS[1:])
+    if any(field in treatment for field in _V5_TREATMENT_FIELDS):
+        fields.extend(_V5_TREATMENT_FIELDS)
+    values = [treatment.get(field) for field in fields]
     if not all(_text(value) for value in values):
         return None
     return "|".join(str(value).strip().casefold() for value in values)
+
+
+def _expected_visual_tiers(lock: Mapping[str, Any]) -> dict[str, str]:
+    layout_plan = lock.get("layout_plan", {})
+    layout_plan = layout_plan if isinstance(layout_plan, Mapping) else {}
+    treatment = lock.get("diagram_treatment", {})
+    treatment = treatment if isinstance(treatment, Mapping) else {}
+    primary = set(layout_plan.get("primary_items", []))
+    edge_roles = layout_plan.get("edge_roles", {})
+    edge_roles = edge_roles if isinstance(edge_roles, Mapping) else {}
+    primary.update(edge_roles.get("primary", []))
+    secondary = set(edge_roles.get("secondary", []))
+    control = set(edge_roles.get("control", []))
+    focal_item = treatment.get("focal_item")
+
+    tiers: dict[str, str] = {}
+    for item in semantic_items(dict(lock)):
+        item_id = item["id"]
+        role = item.get("notation_role")
+        if item_id == focal_item:
+            tier = "focal"
+        elif item_id in control or role in {"guardrail", "stop-condition"}:
+            tier = "control"
+        elif item_id in primary:
+            tier = "primary"
+        elif item_id in secondary or role == "data-object":
+            tier = "secondary"
+        elif item["kind"] in _GROUP_KINDS or item["kind"] == "fragment":
+            tier = "context"
+        else:
+            tier = "secondary"
+        tiers[item_id] = tier
+    return tiers
+
+
+def _visible_style_signature(element: Any) -> tuple[str, str, float] | None:
+    for child in element.iter():
+        if _local_name(child) not in {
+            "rect",
+            "circle",
+            "ellipse",
+            "polygon",
+            "path",
+            "line",
+            "polyline",
+        }:
+            continue
+        fill = child.attrib.get("fill", "none").upper()
+        stroke = child.attrib.get("stroke", "none").upper()
+        width = _number(child.attrib.get("stroke-width")) or 1.0
+        if fill != "NONE" or stroke != "NONE":
+            return fill, stroke, round(width, 3)
+    return None
+
+
+def _is_emphasized(
+    element: Any,
+    identity: Mapping[str, Any],
+) -> bool:
+    strokes = identity.get("stroke_language", {})
+    strokes = strokes if isinstance(strokes, Mapping) else {}
+    emphasis_width = _number(strokes.get("emphasis_width"))
+    palette = identity.get("palette", {})
+    palette = palette if isinstance(palette, Mapping) else {}
+    emphasis_fill_colors = {
+        str(palette[name]).upper()
+        for name in ("primary", "accent", "success", "warning", "danger")
+        if isinstance(palette.get(name), str)
+    }
+    emphasis_stroke_colors = {
+        str(palette[name]).upper()
+        for name in ("accent", "success", "warning", "danger")
+        if isinstance(palette.get(name), str)
+    }
+    for child in element.iter():
+        if _local_name(child) not in {
+            "rect",
+            "circle",
+            "ellipse",
+            "polygon",
+            "path",
+            "line",
+            "polyline",
+        }:
+            continue
+        width = _number(child.attrib.get("stroke-width")) or 1.0
+        fill = child.attrib.get("fill", "none").upper()
+        stroke = child.attrib.get("stroke", "none").upper()
+        if emphasis_width is not None and abs(width - emphasis_width) <= 1e-6:
+            return True
+        if fill != "NONE" and fill in emphasis_fill_colors:
+            return True
+        if stroke in emphasis_stroke_colors:
+            return True
+    return False
+
+
+def _analyze_v5_composition(
+    lock: Mapping[str, Any],
+    root: Any,
+    elements: Mapping[str, Any],
+    errors: list[str],
+) -> dict[str, Any]:
+    viewbox = root.attrib.get("viewBox", "").replace(",", " ").split()
+    try:
+        left, top, width, height = [float(value) for value in viewbox]
+    except (TypeError, ValueError):
+        return {"checked": False}
+    if width <= 0 or height <= 0:
+        return {"checked": False}
+
+    boxes: list[tuple[float, float, float, float]] = []
+    for item in semantic_items(dict(lock)):
+        if item["kind"] in _EDGE_KINDS or item["kind"] in _GROUP_KINDS:
+            continue
+        element = elements.get(item["id"])
+        box = _semantic_element_bbox(element) if element is not None else None
+        if box is not None:
+            boxes.append(box)
+    if not boxes:
+        errors.append("contract v5 visual composition has no analyzable semantic geometry")
+        return {"checked": True, "analyzable_items": 0}
+
+    content = (
+        min(box[0] for box in boxes),
+        min(box[1] for box in boxes),
+        max(box[2] for box in boxes),
+        max(box[3] for box in boxes),
+    )
+    width_fraction = (content[2] - content[0]) / width
+    height_fraction = (content[3] - content[1]) / height
+    margins = {
+        "left": max(0.0, (content[0] - left) / width),
+        "right": max(0.0, (left + width - content[2]) / width),
+        "top": max(0.0, (content[1] - top) / height),
+        "bottom": max(0.0, (top + height - content[3]) / height),
+    }
+    rhythm = str(lock.get("diagram_treatment", {}).get("composition_rhythm", ""))
+    minimums = {
+        "focal": (0.58, 0.28),
+        "explanatory": (0.68, 0.48),
+        "dense": (0.76, 0.62),
+    }
+    min_width, min_height = minimums.get(rhythm, (0.58, 0.28))
+    if width_fraction + 1e-6 < min_width:
+        errors.append(
+            f"contract v5 {rhythm} composition uses {width_fraction:.0%} of canvas width; "
+            f"minimum is {min_width:.0%}"
+        )
+    if height_fraction + 1e-6 < min_height:
+        errors.append(
+            f"contract v5 {rhythm} composition uses {height_fraction:.0%} of canvas height; "
+            f"minimum is {min_height:.0%}"
+        )
+    margin_limits = {
+        "left": 0.22,
+        "right": 0.22,
+        "top": 0.38,
+        "bottom": 0.22,
+    }
+    for side, limit in margin_limits.items():
+        if margins[side] > limit:
+            errors.append(
+                f"contract v5 composition leaves {margins[side]:.0%} {side} margin; "
+                f"maximum is {limit:.0%}"
+            )
+    return {
+        "checked": True,
+        "analyzable_items": len(boxes),
+        "content_bounds": [round(value, 2) for value in content],
+        "width_fraction": round(width_fraction, 4),
+        "height_fraction": round(height_fraction, 4),
+        "margins": {name: round(value, 4) for name, value in margins.items()},
+    }
 
 
 def _is_diamond(element: Any) -> bool:
@@ -415,6 +614,69 @@ def analyze_visual_identity(
     )
     rhythm = str(treatment.get("composition_rhythm", "unknown"))
     signature = "|".join((dominant_shape, boundary_shape, connector_mode, rhythm))
+    tier_report: dict[str, Any] = {"checked": False}
+    composition_report: dict[str, Any] = {"checked": False}
+    if version >= 5:
+        expected_tiers = _expected_visual_tiers(lock)
+        semantic_by_id = {
+            item["id"]: item for item in semantic_items(dict(lock))
+        }
+        tier_counts: Counter[str] = Counter()
+        style_signatures: dict[str, tuple[str, str, float] | None] = {}
+        for item_id, expected_tier in expected_tiers.items():
+            element = elements.get(item_id)
+            if element is None:
+                continue
+            actual_tier = element.attrib.get("data-visual-tier")
+            if actual_tier != expected_tier:
+                errors.append(
+                    f"semantic element {item_id} data-visual-tier must be "
+                    f"{expected_tier!r}, got {actual_tier!r}"
+                )
+            tier_counts[str(actual_tier)] += 1
+            style_signatures[item_id] = _visible_style_signature(element)
+
+        focal_item = treatment.get("focal_item")
+        if isinstance(focal_item, str) and focal_item:
+            focal_element = elements.get(focal_item)
+            if focal_element is not None and not _is_emphasized(focal_element, identity):
+                errors.append(
+                    f"diagram_treatment.focal_item {focal_item!r} must use the locked "
+                    "emphasis stroke or a semantic emphasis color"
+                )
+            focal_signature = style_signatures.get(focal_item)
+            focal_kind = semantic_by_id.get(focal_item, {}).get("kind")
+            peer_signatures = [
+                style
+                for item_id, style in style_signatures.items()
+                if item_id != focal_item and expected_tiers.get(item_id) in {"primary", "secondary"}
+                and semantic_by_id.get(item_id, {}).get("kind") == focal_kind
+                and style is not None
+            ]
+            if focal_signature is not None and peer_signatures and all(
+                style == focal_signature for style in peer_signatures
+            ):
+                errors.append(
+                    f"diagram_treatment.focal_item {focal_item!r} is visually identical "
+                    "to every primary/supporting item"
+                )
+        tier_report = {
+            "checked": True,
+            "expected": dict(sorted(expected_tiers.items())),
+            "counts": dict(sorted(tier_counts.items())),
+            "focal_item": focal_item,
+        }
+        composition_report = _analyze_v5_composition(lock, root, elements, errors)
+        if composition_report.get("checked"):
+            width_bucket = round(float(composition_report.get("width_fraction", 0)) * 4) / 4
+            height_bucket = round(float(composition_report.get("height_fraction", 0)) * 4) / 4
+            signature = "|".join(
+                (
+                    signature,
+                    f"span:{width_bucket:.2f}x{height_bucket:.2f}",
+                    f"tiers:{','.join(sorted(tier_counts))}",
+                )
+            )
     return {
         "checked": True,
         "contract_version": version,
@@ -430,4 +692,6 @@ def analyze_visual_identity(
         "card_like": rounded_ratio >= 0.75 and technical_markers == 0,
         "signature": signature,
         "stroke_language": stroke_report,
+        "visual_hierarchy": tier_report,
+        "composition": composition_report,
     }, errors, warnings

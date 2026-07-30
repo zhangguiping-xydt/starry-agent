@@ -1,6 +1,6 @@
 # Visual Identity Contract
 
-Use contract version 4 for new diagram packs. Keep technical truth separate from visual behavior.
+Use contract version 5 for new diagram packs. Keep technical truth separate from visual behavior. Contract v4 remains valid for existing packs, but it does not bind treatment prose to visible hierarchy and composition.
 
 Apply locks in this order:
 
@@ -69,9 +69,13 @@ Declare one treatment per generated diagram in both the manifest entry and lock:
 diagram_treatment:
   renderer_family: sequence
   composition_rhythm: explanatory
+  focal_item: failure-response
   emphasis: Failure response and retry ordering.
   boundary_style: Participants remain unboxed; subsystem ownership uses headers only.
   connector_style: Temporal messages with return and failure semantics kept distinct.
+  hierarchy_strategy: Failure response is focal; normal calls are primary; returns and notes are supporting.
+  spacing_strategy: Reserve a wider retry rail and keep phase boundaries clear at delivery size.
+  differentiation_strategy: Use sequence-native lifelines and activation bars rather than component cards.
 ```
 
 `renderer_family` must equal the diagram `type`. This prevents architecture, flow, state, sequence, ER, deployment, and other diagrams from being routed through one universal card renderer.
@@ -82,7 +86,21 @@ Use composition rhythms as follows:
 - `dense`: show a fact-complete detail view that remains within the selected layout budget.
 - `explanatory`: reserve space for guards, exception labels, cardinalities, or ordered messages.
 
-`emphasis`, `boundary_style`, and `connector_style` are free descriptions. They are not fixed style enums.
+`emphasis`, `boundary_style`, and `connector_style` are free descriptions. They are not fixed style enums. Contract v5 additionally requires `hierarchy_strategy`, `spacing_strategy`, and `differentiation_strategy`. `focal` and `explanatory` treatments also name a semantic `focal_item` on `layout_plan.primary_items`.
+
+## Executable hierarchy and composition
+
+For contract v5, every semantic SVG group carries `data-visual-tier`. The deterministic tier binding is:
+
+- `focal`: the locked `focal_item`.
+- `primary`: `layout_plan.primary_items` and `edge_roles.primary`.
+- `control`: control edges plus guardrail and stop-condition roles.
+- `context`: groups, lanes, and fragments.
+- `secondary`: supporting, alternate, and data-object items.
+
+The focal item must use the locked emphasis stroke or a semantic emphasis color and must not be visually identical to every peer. The composition gate measures the semantic content span and outer margins at the locked canvas. A treatment fails when a diagram claims focal, explanatory, or dense composition while leaving the content as a small strip or stranded island.
+
+These rules bind intent to output without prescribing a fixed list of styles. The strategist still chooses the visual thesis from the reading question and topology; the validator only rejects unexecuted intent.
 
 ## Type-native rendering
 

@@ -57,7 +57,8 @@ Run every gate before handoff. A report written by the agent is not proof; gener
 - SVG parses and its canvas follows the lock.
 - Required labels remain visible.
 - Colors and fonts come from style_tokens.
-- SVG root identity metadata and actual stroke widths/caps/joins match the v4 pack identity.
+- SVG root identity metadata and actual stroke widths/caps/joins match the v4+ pack identity.
+- Contract v5 semantic groups carry the computed visual tiers; focal emphasis and composition-span checks pass.
 - Every visible text element declares a locked `data-text-role` and uses that role's exact size.
 - No text falls below the minimum effective font size after scaling into the delivery viewport.
 - Every semantic id is present exactly once through stable metadata or a supported renderer id.

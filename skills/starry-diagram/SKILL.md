@@ -11,13 +11,13 @@ Create trustworthy diagram packs from source material. The semantic source is tr
 
 ## Mandatory Pipeline
 
-Source intake → Diagram Strategist → type/viewpoint/layout/notation selection and complexity/diversity gate → pack identity and per-diagram treatment lock → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → type-native semantic grammar and density gate → type-native Visual track → notation/identity/geometry/legibility quality gate → target-size preview → technical visual review and revision loop → optional high-density raster delivery → `embed.md` and reports.
+Source intake → Diagram Strategist → type/viewpoint/layout/notation selection and complexity/diversity gate → pack identity and executable per-diagram treatment lock → `diagram_manifest.yaml` → `diagram_spec.md`/`diagram_lock.yaml` → delivery target and typography lock → Semantic track before visual track → type-native semantic grammar and density gate → content-driven visual hierarchy and composition → type-native Visual track → notation/identity/geometry/legibility/composition quality gate → target-size preview → technical visual review and revision loop → optional high-density raster delivery → `embed.md` and reports.
 
 Execute every gate with the bundled scripts. A written claim that a gate passed is not sufficient.
 
 ## Default diagram-pack mode
 
-When the user does not specify a diagram type, evaluate architecture/business-architecture/flow/swimlane/sequence/er/state/data-flow/deployment/component/event-flow/concept. Each candidate status must be one of generated/skipped/needs_clarification with a source-grounded reason. New packs use `contract_version: 4`; every generated entry declares a distinct `reading_question`, a source-grounded `viewpoint_family`, a compatible `notation_profile`, and a type-native `diagram_treatment`.
+When the user does not specify a diagram type, evaluate architecture/business-architecture/flow/swimlane/sequence/er/state/data-flow/deployment/component/event-flow/concept. Each candidate status must be one of generated/skipped/needs_clarification with a source-grounded reason. New packs use `contract_version: 5`; every generated entry declares a distinct `reading_question`, a source-grounded `viewpoint_family`, a compatible `notation_profile`, and a type-native `diagram_treatment`.
 
 ## Fact gate
 
@@ -34,6 +34,8 @@ For packs with four or more generated diagrams, evaluate viewpoint and visual-si
 Read `references/visual-identity.md` before selecting or customizing appearance. Lock one `pack_identity` for family consistency, then give each generated diagram a `diagram_treatment` whose `renderer_family` equals its technical type. Presets are editable starting points, not a closed style list; use `visual_behavior.mode: custom` for behavior that no preset captures.
 
 Keep `style_tokens` as resolved deterministic values and validate that their colors, typography, and strokes match the pack identity. Before drawing each diagram, re-read the pack identity and the diagram's treatment. Share tokens and measurement helpers across renderers, but do not route different technical types through one generic card or `svg_node()` implementation.
+
+For contract v5, make treatment executable: declare a source-grounded `focal_item` for focal/explanatory compositions plus explicit hierarchy, spacing, and differentiation strategies. The focal item must be on the primary path and visibly emphasized. Stamp `data-visual-tier` on every semantic element. The visual gate verifies tier binding, focal emphasis, canvas use, and stranded margins; prose intent alone cannot pass.
 
 If a candidate exceeds the selected layout pattern's section or total-item limits, split it into overview/detail or separate concern diagrams before creating the lock. Only an explicit user-approved `layout_plan.complexity_exception` may keep an over-budget single diagram.
 
@@ -69,7 +71,7 @@ For medium and strong enhancement, visual.svg must contain a real geometric or t
 
 Construct visual.svg from the locked layout plan: allocate regions first, place `primary_items` on the dominant axis, then route primary, secondary, and control edges in that order. Keep loopbacks and control links on outer rails or shared buses. Put `data-text-role` on every visible `<text>`. The visual gate rejects excessive crossings, edges passing through non-endpoint nodes, unsupported geometry coverage, overlong routes, node/text collisions, text overflow, role-size drift, low effective delivery size, weak contrast, and ambiguous edge-label anchoring.
 
-For contract v4, put `data-pack-identity`, `data-renderer-family`, and `data-composition-rhythm` on the SVG root. Use only the permitted stroke widths, caps, and joins from `pack_identity.stroke_language`. The pack gate rejects repeated rounded-card signatures across distinct technical types unless the manifest records a source-grounded `visual_diversity_reason`.
+For contract v4+, put `data-pack-identity`, `data-renderer-family`, and `data-composition-rhythm` on the SVG root. For v5, also bind every semantic item to its computed visual tier and execute the focal emphasis. Use only the permitted stroke widths, caps, and joins from `pack_identity.stroke_language`. The pack gate rejects repeated rounded-card signatures across distinct technical types unless the manifest records a source-grounded `visual_diversity_reason`.
 
 Run:
 
@@ -104,7 +106,7 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - `references/strategist.md` for diagram pack planning and locks.
 - `references/layout-planning.md` for the layout-plan schema and construction order.
 - `references/technical-notation.md` for v3+ pack diversity, notation roles, and compatibility.
-- `references/visual-identity.md` for contract v4 pack identity, custom visual behavior, per-type treatment, and visual-signature gates.
+- `references/visual-identity.md` for contract v5 pack identity, executable per-type treatment, hierarchy, composition, and visual-signature gates.
 - `references/delivery-and-legibility.md` for delivery viewport, typography roles, and text geometry.
 - `references/technical-visual-review.md` for the mandatory target-size review and revision loop.
 - `references/semantic-executor.md` for Mermaid/PlantUML/Graphviz/source routing.
@@ -132,6 +134,7 @@ Only hand off a diagram whose generated `check_report.json` has `status: passed`
 - Uploading the 1× `preview.png` as the final image on a high-DPI raster-only destination instead of declaring and rendering `raster_delivery`.
 - Trusting the SVG font-family string without verifying which installed font the rasterizer actually resolved.
 - Repeating one viewpoint/layout/notation signature across a pack without evaluating fact-complete alternatives.
+- Writing a persuasive treatment paragraph while rendering the same hierarchy, spacing, and canvas signature as every other diagram.
 - Declaring a decision, datastore, state, boundary, or participant role in metadata while rendering generic card geometry.
 - Leaving semantic items out of `primary_items`/regions or edges out of `edge_roles`.
 - Routing control links repeatedly across the primary flow instead of using a side rail or companion view.

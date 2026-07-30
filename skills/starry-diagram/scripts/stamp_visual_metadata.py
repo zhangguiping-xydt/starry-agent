@@ -11,12 +11,14 @@ from pathlib import Path
 try:
     from common import parse_svg, read_yaml, semantic_items, svg_semantic_elements, write_json
     from notation import contract_version
+    from visual_identity import _expected_visual_tiers
 except ModuleNotFoundError:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import parse_svg, read_yaml, semantic_items, svg_semantic_elements, write_json
     from notation import contract_version
+    from visual_identity import _expected_visual_tiers
 
 
 def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) -> dict[str, object]:
@@ -26,6 +28,7 @@ def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) ->
     missing: list[str] = []
     stamped: list[str] = []
     root_metadata: dict[str, str] = {}
+    visual_tiers = _expected_visual_tiers(lock) if contract_version(lock) >= 5 else {}
 
     if contract_version(lock) >= 4:
         identity = lock.get("pack_identity", {})
@@ -58,6 +61,8 @@ def stamp_visual_metadata(lock_path: Path, svg_path: Path, output_path: Path) ->
             element.set("data-to", item["to"])
         if item.get("notation_role"):
             element.set("data-notation-role", item["notation_role"])
+        if item_id in visual_tiers:
+            element.set("data-visual-tier", visual_tiers[item_id])
         if item["kind"] in {"group", "lane"}:
             record = next(
                 (

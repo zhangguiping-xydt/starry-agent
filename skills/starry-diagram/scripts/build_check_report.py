@@ -9,6 +9,7 @@ from typing import Any
 
 try:
     from common import read_yaml, write_json
+    from notation import contract_version
     from render_delivery_raster import validate_delivery_raster
     from render_preview import validate_preview
     from validate_diagram_lock import validate_lock_file
@@ -20,6 +21,7 @@ except ModuleNotFoundError:
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     from common import read_yaml, write_json
+    from notation import contract_version
     from render_delivery_raster import validate_delivery_raster
     from render_preview import validate_preview
     from validate_diagram_lock import validate_lock_file
@@ -112,6 +114,7 @@ def build_check_report(
         preview_path,
         preview_review_path,
         visual_path=visual_path,
+        expected_contract_version=contract_version(lock) if lock else None,
     )
     delivery_report = None
     if isinstance(lock.get("raster_delivery"), dict):

@@ -718,12 +718,30 @@ def validate_lock(
             lock.get("pack_identity"), style_tokens=lock.get("style_tokens")
         )
         treatment_report, treatment_errors, treatment_warnings = validate_diagram_treatment(
-            lock.get("diagram_treatment"), diagram_type
+            lock.get("diagram_treatment"), diagram_type, version
         )
         errors.extend(identity_errors)
         errors.extend(treatment_errors)
         warnings.extend(identity_warnings)
         warnings.extend(treatment_warnings)
+        if version >= 5 and isinstance(lock.get("diagram_treatment"), Mapping):
+            focal_item = lock["diagram_treatment"].get("focal_item")
+            semantic_ids = {item["id"] for item in semantic_items(lock)}
+            if isinstance(focal_item, str) and focal_item not in semantic_ids:
+                errors.append(
+                    f"diagram_treatment.focal_item {focal_item!r} is not a semantic id"
+                )
+            layout_plan = lock.get("layout_plan", {})
+            primary_items = (
+                set(layout_plan.get("primary_items", []))
+                if isinstance(layout_plan, Mapping)
+                else set()
+            )
+            if isinstance(focal_item, str) and focal_item not in primary_items:
+                errors.append(
+                    "diagram_treatment.focal_item must be listed in "
+                    "layout_plan.primary_items"
+                )
     if isinstance(diagram_type, str):
         _validate_type_semantics(lock, diagram_type, errors, warnings)
     _validate_layout_plan(lock, profile, layouts_data, errors, warnings)

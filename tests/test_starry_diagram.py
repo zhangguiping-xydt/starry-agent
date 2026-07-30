@@ -30,7 +30,11 @@ from render_svg import render_svg  # noqa: E402
 from stamp_visual_metadata import stamp_visual_metadata  # noqa: E402
 from validate_diagram_lock import validate_lock  # noqa: E402
 from validate_diagram_manifest import validate_manifest, validate_manifest_file  # noqa: E402
-from validate_preview_review import REQUIRED_CHECKS, validate_preview_review  # noqa: E402
+from validate_preview_review import (  # noqa: E402
+    REQUIRED_CHECKS,
+    V5_REQUIRED_CHECKS,
+    validate_preview_review,
+)
 from validate_semantic_source import validate_semantic_source  # noqa: E402
 from validate_visual_svg import validate_visual_svg  # noqa: E402
 from visual_identity import validate_pack_identity  # noqa: E402
@@ -127,6 +131,20 @@ def _v4_architecture_lock() -> dict[str, object]:
     lock["groups"][0]["notation_role"] = "boundary"
     lock["style_tokens"]["strokes"] = dict(
         lock["pack_identity"]["stroke_language"]
+    )
+    return lock
+
+
+def _v5_architecture_lock() -> dict[str, object]:
+    lock = _v4_architecture_lock()
+    lock["contract_version"] = 5
+    lock["diagram_treatment"].update(
+        {
+            "focal_item": "node-b",
+            "hierarchy_strategy": "Node B is focal; Node A and the call path are primary.",
+            "spacing_strategy": "Use the full runtime span without stranded outer margins.",
+            "differentiation_strategy": "Use architecture containment and component geometry.",
+        }
     )
     return lock
 
@@ -426,7 +444,8 @@ def test_preview_review_template_matches_validator_contract() -> None:
             encoding="utf-8"
         )
     )
-    assert tuple(template["checks"]) == REQUIRED_CHECKS
+    assert template["contract_version"] == 5
+    assert tuple(template["checks"]) == V5_REQUIRED_CHECKS
 
 
 def test_reference_typography_meets_reference_delivery_target() -> None:
@@ -689,6 +708,22 @@ def test_v4_lock_rejects_generic_renderer_family() -> None:
     report = validate_lock(lock)
     assert report["status"] == "failed"
     assert any("must equal the locked diagram type" in error for error in report["errors"])
+
+
+def test_v5_lock_requires_executable_treatment_and_primary_focal_item() -> None:
+    lock = _v5_architecture_lock()
+    assert validate_lock(lock)["status"] == "passed"
+
+    del lock["diagram_treatment"]["hierarchy_strategy"]
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("hierarchy_strategy" in error for error in report["errors"])
+
+    lock = _v5_architecture_lock()
+    lock["diagram_treatment"]["focal_item"] = "runtime"
+    report = validate_lock(lock)
+    assert report["status"] == "failed"
+    assert any("layout_plan.primary_items" in error for error in report["errors"])
 
 
 def test_v3_branching_flow_requires_decision_role() -> None:
@@ -1263,6 +1298,59 @@ def test_v4_visual_binds_identity_to_actual_svg_geometry(tmp_path: Path) -> None
     assert any("stroke-width 3.7" in error for error in report["visual"]["errors"])
 
 
+def test_v5_visual_binds_treatment_to_hierarchy_and_composition(tmp_path: Path) -> None:
+    lock = _v5_architecture_lock()
+    lock_path = tmp_path / "diagram_lock.yaml"
+    svg_path = tmp_path / "visual.svg"
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120" data-pack-identity="precise-industrial" data-renderer-family="architecture" data-composition-rhythm="focal">
+  <rect width="260" height="120" fill="#f8fafc"/>
+  <g data-diagram-id="runtime" data-diagram-kind="group" data-members="node-a,node-b" data-notation-role="boundary" data-visual-tier="context">
+    <rect x="4" y="4" width="252" height="112" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+    <text x="10" y="28" font-family="Noto Sans CJK SC" font-size="18" data-text-role="group-title" fill="#0f172a">Runtime</text>
+  </g>
+  <g data-diagram-id="node-a" data-diagram-kind="node" data-notation-role="external-system" data-visual-tier="primary">
+    <rect x="20" y="45" width="70" height="50" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/>
+    <text x="30" y="70" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Node A</text>
+  </g>
+  <g data-diagram-id="node-b" data-diagram-kind="node" data-notation-role="service" data-visual-tier="focal">
+    <rect x="170" y="45" width="70" height="50" fill="#ffffff" stroke="#2563eb" stroke-width="2.4"/>
+    <text x="180" y="70" font-family="Noto Sans CJK SC" font-size="16" data-text-role="node-title" fill="#0f172a">Node B</text>
+  </g>
+  <g data-diagram-id="a-to-b" data-diagram-kind="edge" data-from="node-a" data-to="node-b" data-visual-tier="primary">
+    <path d="M90 65 H170" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="117" y="58" font-family="Noto Sans CJK SC" font-size="14" data-text-role="edge-label" fill="#64748b">Calls</text>
+  </g>
+</svg>'''
+    svg_path.write_text(
+        svg.replace('data-visual-tier="focal"', 'data-visual-tier="primary"'),
+        encoding="utf-8",
+    )
+    report = validate_visual_svg(lock_path, svg_path)
+    assert report["status"] == "failed"
+    assert any("data-visual-tier" in error for error in report["visual"]["errors"])
+
+    svg_path.write_text(svg, encoding="utf-8")
+    report = validate_visual_svg(lock_path, svg_path)
+    assert report["status"] == "passed", report["visual"]["errors"]
+    identity = report["visual"]["visual_identity"]
+    assert identity["visual_hierarchy"]["focal_item"] == "node-b"
+    assert identity["composition"]["width_fraction"] > 0.8
+
+    svg_path.write_text(svg.replace('stroke-width="2.4"', 'stroke-width="1.4"'), encoding="utf-8")
+    report = validate_visual_svg(lock_path, svg_path)
+    assert report["status"] == "failed"
+    assert any("focal_item" in error for error in report["visual"]["errors"])
+
+    compact = svg.replace('x="170" y="45"', 'x="100" y="45"').replace(
+        'd="M90 65 H170"', 'd="M90 65 H100"'
+    )
+    svg_path.write_text(compact, encoding="utf-8")
+    report = validate_visual_svg(lock_path, svg_path)
+    assert report["status"] == "failed"
+    assert any("composition uses" in error for error in report["visual"]["errors"])
+
+
 def test_visual_enforces_edge_label_role_size(tmp_path: Path) -> None:
     diagram_dir = _write_diagram(tmp_path)
     lock_path = diagram_dir / "diagram_lock.yaml"
@@ -1507,6 +1595,49 @@ def test_preview_review_is_bound_to_current_visual_svg(tmp_path: Path) -> None:
     assert any("visual hash does not match" in error for error in report["errors"])
 
 
+def test_v5_preview_review_requires_lock_version_and_new_checks(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    review_path = diagram_dir / "preview_review.yaml"
+    report = validate_preview_review(
+        diagram_dir / "preview.png",
+        review_path,
+        visual_path=diagram_dir / "visual.svg",
+        expected_contract_version=5,
+    )
+    assert report["status"] == "failed"
+    assert any("contract_version" in error for error in report["errors"])
+    assert any("visual_hierarchy_clear" in error for error in report["errors"])
+
+    review = yaml.safe_load(review_path.read_text(encoding="utf-8"))
+    review["contract_version"] = 5
+    review["checks"]["visual_hierarchy_clear"] = "passed"
+    review["checks"]["composition_content_driven"] = "passed"
+    review_path.write_text(yaml.safe_dump(review, sort_keys=False), encoding="utf-8")
+    assert (
+        validate_preview_review(
+            diagram_dir / "preview.png",
+            review_path,
+            visual_path=diagram_dir / "visual.svg",
+            expected_contract_version=5,
+        )["status"]
+        == "passed"
+    )
+
+
+def test_build_report_uses_lock_version_for_preview_review(tmp_path: Path) -> None:
+    diagram_dir = _write_diagram(tmp_path)
+    (diagram_dir / "diagram_lock.yaml").write_text(
+        yaml.safe_dump(_v5_architecture_lock(), sort_keys=False), encoding="utf-8"
+    )
+    report = build_check_report(diagram_dir)
+    assert report["status"] == "failed"
+    assert "preview_review" in report["failed_checks"]
+    assert any(
+        "contract_version" in error
+        for error in report["checks"]["preview_review"]["errors"]
+    )
+
+
 def test_preview_dimension_helpers_and_renderer(tmp_path: Path) -> None:
     diagram_dir = _write_diagram(tmp_path)
     lock_path = diagram_dir / "diagram_lock.yaml"
@@ -1608,6 +1739,27 @@ def test_stamp_visual_metadata_adds_v4_root_identity(tmp_path: Path) -> None:
     stamped = svg_path.read_text(encoding="utf-8")
     assert 'data-pack-identity="precise-industrial"' in stamped
     assert 'data-renderer-family="architecture"' in stamped
+
+
+def test_stamp_visual_metadata_adds_v5_visual_tiers(tmp_path: Path) -> None:
+    lock = _v5_architecture_lock()
+    lock_path = tmp_path / "diagram_lock.yaml"
+    svg_path = tmp_path / "visual.svg"
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    svg_path.write_text(
+        '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120">
+  <g id="runtime"><rect x="5" y="5" width="250" height="110"/></g>
+  <g id="node-a"><rect x="20" y="45" width="70" height="40"/></g>
+  <g id="node-b"><rect x="170" y="45" width="70" height="40"/></g>
+  <g id="a-to-b"><path d="M90 65 H170"/></g>
+</svg>''',
+        encoding="utf-8",
+    )
+    assert stamp_visual_metadata(lock_path, svg_path, svg_path)["status"] == "passed"
+    stamped = svg_path.read_text(encoding="utf-8")
+    assert 'data-diagram-id="runtime"' in stamped and 'data-visual-tier="context"' in stamped
+    assert 'data-diagram-id="node-a"' in stamped and 'data-visual-tier="primary"' in stamped
+    assert 'data-diagram-id="node-b"' in stamped and 'data-visual-tier="focal"' in stamped
 
 
 def test_metadata_reserialization_does_not_bypass_noop_gate(tmp_path: Path) -> None:

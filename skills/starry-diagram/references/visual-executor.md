@@ -8,7 +8,8 @@ The output is a technical diagram. Read `../templates/notations/technical_notati
 
 - Improve layout, spacing, alignment, hierarchy, grouping, and whitespace.
 - Apply typography, strokes, fills, shadows, and subtle effects from `style_tokens`.
-- For contract v4, re-read `pack_identity` and `diagram_treatment` before each diagram. Apply the pack identity consistently while using the locked type's renderer family.
+- For contract v4+, re-read `pack_identity` and `diagram_treatment` before each diagram. Apply the pack identity consistently while using the locked type's renderer family.
+- For contract v5, turn the treatment into geometry before styling: place the focal item, allocate primary/supporting/control zones, then verify that the resulting semantic span uses the canvas at the locked composition rhythm.
 - Normalize canvas size and viewBox while keeping all semantic labels visible.
 - Apply the exact role sizes from `style_tokens.typography`; put `data-text-role` on every visible text element.
 - Add stable semantic metadata required by the visual gate.
@@ -33,7 +34,7 @@ The output is a technical diagram. Read `../templates/notations/technical_notati
 
 Only use `style_tokens` for visual decisions.
 
-For contract v4, set `data-pack-identity`, `data-renderer-family`, and `data-composition-rhythm` on the SVG root. Use the exact permitted widths, caps, and joins from `pack_identity.stroke_language`. Shared helpers may apply tokens, measure text, or emit metadata; the type renderer owns shapes, containers, and connector grammar.
+For contract v4+, set `data-pack-identity`, `data-renderer-family`, and `data-composition-rhythm` on the SVG root. For contract v5, every semantic group also carries its deterministic `data-visual-tier`; the focal element uses the emphasis width or a semantic emphasis color. Use the exact permitted widths, caps, and joins from `pack_identity.stroke_language`. Shared helpers may apply tokens, measure text, or emit metadata; the type renderer owns shapes, containers, and connector grammar.
 
 ## Layout execution
 
@@ -45,6 +46,14 @@ Read `layout_plan` and the selected entry in `templates/layouts/technical_layout
 4. Route `edge_roles.primary`, then `secondary`, then `control`.
 5. Route loopbacks and control links on outer rails, shared buses, or explicit ports.
 6. Run the geometry-aware visual gate and revise until it passes.
+
+Do not treat composition rhythm as metadata:
+
+- `focal`: create one unmistakable semantic anchor and subordinate peers without turning the diagram into an infographic.
+- `explanatory`: preserve a dominant path while reserving readable space for guards, boundaries, contracts, or exceptions.
+- `dense`: use phase bands, lanes, aligned compartments, or another type-native organizer so density reads as structure rather than a wall.
+
+Different diagram types in one pack share identity tokens, not one canvas skeleton. Change the dominant axis, containment grammar, route rhythm, and whitespace allocation when the reading question and topology call for it.
 
 Do not solve excess complexity by shrinking labels, lengthening the canvas, or routing repeated diagonals across unrelated regions.
 

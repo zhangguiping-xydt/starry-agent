@@ -1,4 +1,4 @@
-contract_version: 4
+contract_version: 5
 id: architecture-overview
 title: 架构总览
 type: architecture
@@ -48,9 +48,13 @@ pack_identity:
 diagram_treatment:
   renderer_family: architecture
   composition_rhythm: focal
+  focal_item: workflow-orchestration-service
   emphasis: 核心组件、系统边界与主调用路径。
   boundary_style: 使用明确的分层容器表达运行时边界。
   connector_style: 使用正交依赖线，主路径优先，控制线走外轨。
+  hierarchy_strategy: 编排服务为视觉焦点，入口与主调用为主层，运行时边界退为上下文层。
+  spacing_strategy: 主路径占据画布中心，边界与标题保持可辨留白，不形成孤立内容岛。
+  differentiation_strategy: 使用架构容器、组件端口与依赖线，不复用流程或状态节点骨架。
 layout_plan:
   pattern: layered-system
   selection_reason: 源材料明确给出应用入口与编排服务的分层依赖，且不存在以消息时序为主的阅读任务。

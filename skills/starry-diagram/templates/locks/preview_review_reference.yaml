@@ -1,3 +1,4 @@
+contract_version: 5
 preview_sha256: "replace-with-preview-png-sha256"
 visual_svg_sha256: "replace-with-visual-svg-sha256"
 reviewed_at_target_size: true
@@ -12,4 +13,6 @@ checks:
   semantic_roles_readable: passed
   density_and_whitespace: passed
   no_slide_chrome: passed
+  visual_hierarchy_clear: passed
+  composition_content_driven: passed
 findings: []

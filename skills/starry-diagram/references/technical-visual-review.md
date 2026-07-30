@@ -24,10 +24,13 @@ Run this review after static visual validation and target-size preview rendering
 | `semantic_roles_readable` | Actions, decisions, data objects, states, participants, stores, boundaries, and control/feedback relations are distinguishable by geometry and placement without reading metadata. |
 | `density_and_whitespace` | The target-size image has no message wall, stranded region, oversized store/control area, or large empty band that weakens the primary reading path. |
 | `no_slide_chrome` | The diagram does not add page furniture, decorative card grids, hero copy, badges, or imagery unrelated to technical reading. |
+| `visual_hierarchy_clear` | The v5 focal, primary, secondary, control, and context tiers are visible without inspecting metadata; the focal item is a real reading anchor. |
+| `composition_content_driven` | The canvas, dominant axis, spacing, and containment follow this diagram's reading question and topology rather than repeating another diagram's skeleton. |
 
 ## Review artifact
 
 ```yaml
+contract_version: 5
 preview_sha256: "<sha256 of preview.png>"
 visual_svg_sha256: "<sha256 of visual.svg>"
 reviewed_at_target_size: true
@@ -42,6 +45,8 @@ checks:
   semantic_roles_readable: passed
   density_and_whitespace: passed
   no_slide_chrome: passed
+  visual_hierarchy_clear: passed
+  composition_content_driven: passed
 findings: []
 ```
 

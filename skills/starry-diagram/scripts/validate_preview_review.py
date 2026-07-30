@@ -27,6 +27,10 @@ REQUIRED_CHECKS = (
     "density_and_whitespace",
     "no_slide_chrome",
 )
+V5_REQUIRED_CHECKS = REQUIRED_CHECKS + (
+    "visual_hierarchy_clear",
+    "composition_content_driven",
+)
 
 
 def preview_sha256(path: Path) -> str:
@@ -38,6 +42,7 @@ def validate_preview_review(
     review_path: Path,
     *,
     visual_path: Path | None = None,
+    expected_contract_version: int | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     if not preview_path.exists():
@@ -69,15 +74,31 @@ def validate_preview_review(
     if review.get("status") != "passed":
         errors.append("preview review status must be passed after all revisions")
 
+    declared_version = review.get("contract_version")
+    if isinstance(declared_version, bool) or not isinstance(declared_version, int):
+        if declared_version is not None:
+            errors.append("preview review contract_version must be an integer")
+        declared_version = None
+    effective_version = declared_version or 4
+    if expected_contract_version is not None:
+        if expected_contract_version >= 5 and declared_version != expected_contract_version:
+            errors.append(
+                "preview review contract_version must match the v5+ diagram lock"
+            )
+        elif declared_version is not None and declared_version != expected_contract_version:
+            errors.append("preview review contract_version does not match diagram lock")
+        effective_version = expected_contract_version
+
     checks = review.get("checks")
+    required_checks = V5_REQUIRED_CHECKS if effective_version >= 5 else REQUIRED_CHECKS
     check_results: dict[str, Any] = {}
     if not isinstance(checks, Mapping):
         errors.append("preview review checks must be a mapping")
     else:
-        extra = sorted(set(checks) - set(REQUIRED_CHECKS))
+        extra = sorted(set(checks) - set(required_checks))
         if extra:
             errors.append(f"preview review has unsupported checks: {extra}")
-        for name in REQUIRED_CHECKS:
+        for name in required_checks:
             result = checks.get(name)
             check_results[name] = result
             if result != "passed":
@@ -101,6 +122,8 @@ def validate_preview_review(
         "errors": errors,
         "preview_sha256": actual_hash,
         "visual_svg_sha256": actual_visual_hash,
+        "contract_version": declared_version,
+        "expected_contract_version": expected_contract_version,
         "checks": check_results,
         "findings": findings,
     }
@@ -111,6 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("preview_file", type=Path)
     parser.add_argument("review_file", type=Path)
     parser.add_argument("--visual-svg", type=Path)
+    parser.add_argument("--contract-version", type=int)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args(argv)
 
@@ -118,6 +142,7 @@ def main(argv: list[str] | None = None) -> int:
         args.preview_file,
         args.review_file,
         visual_path=args.visual_svg,
+        expected_contract_version=args.contract_version,
     )
     if args.report is not None:
         write_json(args.report, report)

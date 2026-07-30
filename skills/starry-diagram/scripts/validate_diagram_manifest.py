@@ -155,7 +155,7 @@ def _validate_generated_entry(
                 )
     if version >= 4:
         _, treatment_errors, _ = validate_diagram_treatment(
-            entry.get("diagram_treatment"), entry.get("type")
+            entry.get("diagram_treatment"), entry.get("type"), version
         )
         errors.extend(f"diagram {entry_id} {error}" for error in treatment_errors)
 
@@ -190,6 +190,11 @@ def _validate_lock_consistency(
         errors.append(
             f"diagram {entry_id} manifest contract_version {manifest_version} "
             f"requires a v4 lock, got {lock_version}"
+        )
+    if manifest_version >= 5 and lock_version < 5:
+        errors.append(
+            f"diagram {entry_id} manifest contract_version {manifest_version} "
+            f"requires a v5 lock, got {lock_version}"
         )
     comparisons = {
         "id": lock.get("id"),
@@ -248,12 +253,17 @@ def validate_manifest(
     if version < 3:
         warnings.append(
             "legacy diagram manifest does not enforce viewpoint diversity; "
-            "use contract_version: 4 for new diagram packs"
+            "use contract_version: 5 for new diagram packs"
         )
     elif version < 4:
         warnings.append(
             "contract v3 does not enforce pack identity or per-type renderer families; "
-            "use contract_version: 4 for new diagram packs"
+            "use contract_version: 5 for new diagram packs"
+        )
+    elif version < 5:
+        warnings.append(
+            "contract v4 does not bind diagram treatment to visible hierarchy or canvas use; "
+            "use contract_version: 5 for new diagram packs"
         )
 
     for field in ("project", "mode", "source_summary"):
